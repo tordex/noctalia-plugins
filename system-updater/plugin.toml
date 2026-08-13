@@ -1,0 +1,56 @@
+id = "tordex/system-updater"
+name = "System Updates Manager"
+version = "1.0.0"
+plugin_api = 20
+author = "tordex"
+license = "MIT"
+dependencies = []
+tags = ["dnf", "cargo", "flatpak", "update", "upgrade"]
+icon = "package"
+description = "Manage system updates (PackageKit, Flatpak, Cargo etc.)."
+
+[[setting]]
+key = "auto_check_hours"
+type = "int"
+label_key = "settings.auto_check_hours.label"
+description_key = "settings.auto_check_hours.description"
+default = 0
+min = 0
+max = 168
+
+[[setting]]
+key = "notify_on_updates"
+type = "bool"
+label_key = "settings.notify_on_updates.label"
+description_key = "settings.notify_on_updates.description"
+default = true
+
+[[widget]]
+id = "status"
+entry = "widget.luau"
+
+  [[widget.setting]]
+  key = "glyph"
+  type = "glyph"
+  label_key = "settings.glyph.label"
+  description_key = "settings.glyph.description"
+  default = "package"
+
+  [[widget.setting]]
+  key = "show_count"
+  type = "bool"
+  label_key = "settings.show_count.label"
+  description_key = "settings.show_count.description"
+  default = true
+
+[[service]]
+id = "service"
+entry = "service.luau"
+
+[[panel]]
+id = "panel"
+entry = "panel.luau"
+width = 500
+height = 600
+placement = "attached"
+open_near_click = true

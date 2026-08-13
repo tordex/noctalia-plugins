@@ -1,0 +1,18 @@
+{
+    "PackageKit":{
+        "enabled": true,
+        "dependencies": ["python", "pkgcli"],
+        "check_command": "python {plugin_dir}/adapters/packagekit-check.py",
+        "refresh_command": "pkgcli refresh",
+        "update_package_command": "pkgcli -y -q update {package_name}",
+        "update_all_command": "pkgcli offline-update prepare;pkgcli offline-update trigger"
+    },
+    "Flatpak": {
+        "enabled": true,
+        "dependencies": ["flatpak", "python"],
+        "check_command": "python {plugin_dir}/adapters/flatpak-check.py",
+        "refresh_command": "",
+        "update_package_command": "flatpak -y --noninteractive update {package_name}",
+        "update_all_command": "flatpak -y --noninteractive update"
+    }
+}

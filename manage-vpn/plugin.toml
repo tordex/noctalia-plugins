@@ -1,0 +1,26 @@
+id = "tordex/manage-vpn"
+name = "Manage VPN"
+version = "1.0.0"
+plugin_api = 17
+author = "tordex"
+license = "MIT"
+dependencies = []
+tags = ["vpn"]
+icon = "puzzle"
+description = "Manage SSH VPN Services"
+
+[[widget]]
+id = "status"
+entry = "widget.luau"
+
+[[service]]
+id = "service"
+entry = "service.luau"
+
+[[panel]]
+id = "panel"
+entry = "panel.luau"
+width = 420
+height = 300
+placement = "floating"
+position = "center"
