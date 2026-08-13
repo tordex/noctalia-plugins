@@ -273,14 +273,16 @@ local function render()
     local rows = {}
     local stickToBottom = false
     if state.state == "idle" then
+        -- Show the adapters and their updates when idle
         for _, adapter in pairs(state.adapters) do
             table.insert(rows, adapterRow(adapter))
         end
     elseif state.state == "checking" then
-        for _, task in ipairs(state.finished_tasks) do
+        -- Show the tasks when checking for updates
+        for _, task in ipairs(state.task_checking.finished) do
             table.insert(rows, taskRow(task))
         end
-        for _, task in ipairs(state.scheduled_tasks) do
+        for _, task in ipairs(state.task_checking.pending) do
             table.insert(rows, taskRow(task))
         end
         stickToBottom = true

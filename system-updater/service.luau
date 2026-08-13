@@ -1,4 +1,10 @@
 --!nonstrict
+
+local adapters = {}
+local checking_pending_tasks = {}
+local finished_tasks = {}
+
+-- Table with pending and finished tasks for checking updates.
 -- task structure:
 -- {
 --     cmd = "command to run",
@@ -7,10 +13,17 @@
 --     state = "waiting" or "running" or "done" or "error",
 --     error_msg = "error message if any"
 -- }
+local task_checking = {
+    pending = {},
+    finished = {}
+}
 
-local adapters = {}
-local scheduled_tasks = {}
-local finished_tasks = {}
+-- Table with pending and finished tasks for installing updates.
+-- 
+local task_updating = {
+    pending = {},
+    finished = {}
+}
 
 local state = "idle"
 local total_updates = 0
@@ -57,23 +70,22 @@ function publish_state()
         state = state,
         total = total_updates,
         adapters = items,
-        scheduled_tasks = scheduled_tasks,
-        finished_tasks = finished_tasks
+        task_checking = task_checking,
+        task_updating = task_updating,
     })
 end
 
-local start_queue
+local start_check_queue
 
 local function next_task()
-    table.insert(finished_tasks, scheduled_tasks[1])
-    table.remove(scheduled_tasks, 1)
-    start_queue()
+    table.insert(task_checking.finished, task_checking.pending[1])
+    table.remove(task_checking.pending, 1)
+    start_check_queue()
 end
 
 -- Start the next command in the run queue, if any.  This is called after each command completes, and will start the next command in the queue.
-start_queue = function()
-    if #scheduled_tasks == 0 then
-        log("Update check complete. Total updates: " .. tostring(total_updates))
+start_check_queue = function()
+    if #task_checking.pending == 0 then
         state = "idle"
         total_updates = 0
         for _, adapter in pairs(adapters) do
@@ -82,34 +94,31 @@ start_queue = function()
         publish_state()
         return
     end
-    local cmd = scheduled_tasks[1].cmd
-    local adapter = scheduled_tasks[1].adapter
-    scheduled_tasks[1].state = "running"
+    local cmd = task_checking.pending[1].cmd
+    local adapter = task_checking.pending[1].adapter
+    task_checking.pending[1].state = "running"
     publish_state()
-    log(adapter .. "[" .. scheduled_tasks[1].phase .. "]")
     noctalia.runAsync(cmd, function (result)
         if result.timedOut or result.exitCode ~= 0 then
-            err(adapter .. "[" .. scheduled_tasks[1].phase .. "]" .. ": timeout=" .. tostring(result.timedOut) .. " exitCode=" .. tostring(result.exitCode) .. " err: " .. tostring(result.stderr))
-            scheduled_tasks[1].state = "error"
+            task_checking.pending[1].state = "error"
             if result.timedOut then
                 table.insert(adapters[adapter].error_msg, {
-                    phase = scheduled_tasks[1].phase,
+                    phase = task_checking.pending[1].phase,
                     message = noctalia.tr("error_timeout")
                 })
-                scheduled_tasks[1].error_msg = noctalia.tr("error_timeout")
+                task_checking.pending[1].error_msg = noctalia.tr("error_timeout")
             else
                 table.insert(adapters[adapter].error_msg, {
-                    phase = scheduled_tasks[1].phase,
+                    phase = task_checking.pending[1].phase,
                     message = result.stderr
                 })
-                scheduled_tasks[1].error_msg = result.stderr
+                task_checking.pending[1].error_msg = result.stderr
             end
             adapters[adapter].total = 0
         else
-            scheduled_tasks[1].state = "done"
+            task_checking.pending[1].state = "done"
             adapters[adapter].updates = noctalia.json.decode(result.stdout) or {}
             adapters[adapter].total = #adapters[adapter].updates
-            log(adapter .. "[" .. scheduled_tasks[1].phase .. "]" .. ": updates: " .. tostring(adapters[adapter].total))
         end
         publish_state()
         next_task()
@@ -118,21 +127,24 @@ end
 
 -- Start a check for updates.  This will run the refresh command for each enabled adapter, followed by the check command for each enabled adapter.
 local function start_check(adapter_name)
-    log("Starting update check")
     if adapters == nil then
         err("Adapters are empty")
         return
     end
+    if state ~= "idle" then
+        err("System updater is busy")
+        return
+    end
 
-    table.clear(scheduled_tasks)
-    table.clear(finished_tasks)
+    table.clear(task_checking.pending)
+    table.clear(task_checking.finished)
     total_updates = 0
 
     for name, adapter in pairs(adapters) do
         if adapter.enabled and (adapter_name == nil or adapter_name == name) then
             adapters[name].error_msg = {}
             if adapter.refresh_command ~= "" then
-                table.insert(scheduled_tasks, {
+                table.insert(task_checking.pending, {
                     cmd = string.gsub(adapter.refresh_command, "{plugin_dir}", noctalia.pluginDir()),
                     adapter = name,
                     phase = "refresh",
@@ -140,7 +152,7 @@ local function start_check(adapter_name)
                     error_msg = ""
                 })
             end
-            table.insert(scheduled_tasks, {
+            table.insert(task_checking.pending, {
                 cmd = string.gsub(adapter.check_command, "{plugin_dir}", noctalia.pluginDir()),
                 adapter = name,
                 phase = "check",
@@ -150,10 +162,10 @@ local function start_check(adapter_name)
         end
     end
 
-    if #scheduled_tasks > 0 then
+    if #task_checking.pending > 0 then
         state = "checking"
         publish_state()
-        start_queue()
+        start_check_queue()
     else
         state = "idle"
         publish_state()
@@ -161,6 +173,15 @@ local function start_check(adapter_name)
 end
 
 local function start_update(adapter_name, package)
+    log("Starting update")
+    if adapters == nil then
+        err("Adapters are empty")
+        return
+    end
+    if state ~= "idle" then
+        err("System updater is busy")
+        return
+    end
 end
     
 
