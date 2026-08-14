@@ -1,9 +1,23 @@
 --!nonstrict
 
+-- List of adapters for checking and installing updates.  Each adapter is a table with the following fields:
+-- {
+--     name = "adapter name",
+--     enabled = true or false,
+--     dependencies = {"list", "of", "dependencies"},
+--     check_command = "command to run to check for updates",
+--     update_package_command = "command to run to update a single package". Use {package_name} as a placeholder for the package name.
+--                              If this field is empty, the adapter does not support updating single packages.
+--     update_all_command = "command to run to update all packages",
+--     phase = "ready" or "checking" or "updating". This field is filled in by the service and is not part of the adapter definition,
+--     error_msg = "error message if any". This field is filled in by the service and is not part of the adapter definition,
+--     total = number of updates available. This field is filled in by the service and is not part of the adapter definition,
+--     updates = {"list", "of", "updates"}. This field is filled in by the service and is not part of the adapter definition,
+-- }
 local adapters = {}
-local checking_pending_tasks = {}
-local finished_tasks = {}
 
+-- The adapter that should be rechecked after an update is completed.
+-- This is used to recheck for updates after an update is completed, so that the user can see if there are any new updates available.
 local recheck_adapter = nil
 
 -- Table with pending and finished tasks for checking updates.
@@ -46,9 +60,11 @@ end
 local function load_adapters()
     local str = noctalia.readFile(noctalia.pluginDir() .. "/adapters/adapters.json")
     local out = noctalia.json.decode(str)
-    for name, adapter in pairs(out) do
+    for name, adapter in out do
         adapter.phase = "ready"
         adapter.error_msg = ""
+        adapter.info = ""
+        adapter.show_actions = {}
         adapter.total = 0
         adapter.updates = {}
     end
@@ -64,7 +80,9 @@ function publish_state()
                 name = name,
                 error_msg = adapter.error_msg,
                 total = adapter.total,
-                updates = adapter.updates
+                updates = adapter.updates,
+                info = adapter.info,
+                actions = adapter.show_actions
             })
         end
     end
@@ -126,7 +144,10 @@ start_check_queue = function()
             adapters[adapter].total = 0
         else
             task_checking.pending[1].state = "done"
-            adapters[adapter].updates = noctalia.json.decode(result.stdout) or {}
+            local data = noctalia.json.decode(result.stdout) or {info = "", updates = {}}
+            adapters[adapter].updates = data.updates
+            adapters[adapter].info = data.info or ""
+            adapters[adapter].show_actions = data.actions or {}
             adapters[adapter].total = #adapters[adapter].updates
         end
         publish_state()
@@ -314,6 +335,33 @@ end
 
 noctalia.state.watch("request", function(value)
     handle(value.action, value.adapter, value.package)
+end)
+
+noctalia.state.watch("adapter_action", function(value)
+    log("Received adapter action request: adapter=" .. value.adapter .. " action=" .. value.action)
+    local adapter = value.adapter
+    local cmd = adapters[adapter].actions[value.action].command
+    local check_after = adapters[adapter].actions[value.action].check_after
+    state = "action"
+    publish_state()
+    noctalia.runAsync(cmd, function (result)
+        if result.timedOut or result.exitCode ~= 0 then
+            table.insert(adapters[adapter].error_msg, {
+                phase = "action",
+                message = result.stderr
+            })
+            state = "idle"
+            publish_state()
+        else
+            if check_after then
+                state = "idle"
+                start_check(adapter)
+            else
+                state = "idle"
+                publish_state()
+            end
+        end
+    end, 60000)
 end)
 
 noctalia.setUpdateInterval(1000)

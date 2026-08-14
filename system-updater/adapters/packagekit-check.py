@@ -78,7 +78,40 @@ def get_package_info(package_name):
             "version": ""
         }
 
+def check_offline_update_status():
+    proc = subprocess.run(["pkgcli", "-q", "offline-update", "status", "--json"], capture_output=True)
+    if proc.returncode != 0:
+        print(proc.stderr.decode(), file=sys.stderr)
+        exit(1)
+    stdout = proc.stdout.decode().strip()
+    lines = stdout.splitlines()
+    if len(lines) >= 1:
+        data = json.loads(lines[0])  # Validate JSON
+        if data.get("info", "").find("reboot") != -1:
+            return data.get("info", "")
+    return ""
+
+
 def package_kit_updates():
+
+    info = check_offline_update_status()
+    if info != "":
+        return {
+            "info": info,
+            "actions": [
+                {
+                    "name": "Cancel",
+                    "tip": "Cancel the offline update process",
+                    "command": "cancel"
+                },
+                {
+                    "name": "Reboot",
+                    "tip": "Reboot the system to complete the offline update process",
+                    "command": "reboot"
+                }
+            ],
+            "updates": []
+        }
 
     refresh_updates()
 
@@ -100,7 +133,10 @@ def package_kit_updates():
         out.append(update_info)
 
     out.sort(key=lambda x: x["name"].lower())
-    return out
+    return {
+        "info": "",
+        "updates": out
+    }
 
 if __name__ == "__main__":
     print(json.dumps(package_kit_updates(), indent=2, ensure_ascii=False))

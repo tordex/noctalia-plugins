@@ -60,6 +60,13 @@ local function request(action, adapter, package_id)
     })
 end
 
+local function adapter_action(adapter, action)
+    noctalia.state.set("adapter_action", {
+        action = action,
+        adapter = adapter
+    })
+end
+
 local function packageRow(item, adapter_name)
     local children = {
         ui.label({ text = item.name, fontSize = SKIN_PKG_TITLE_FONT_SIZE, color = "on_surface", flexGrow = 1, maxLines = 1, fontWeight = "bold" }),
@@ -162,6 +169,38 @@ local function adapterRow(adapter)
                 })
             }))
         end
+    end
+    if adapter.info ~= nil and adapter.info ~= "" then
+        local info_column = {ui.label({ text = adapter.info, color = "primary", flexGrow = 1, maxLines = 4 })}
+        if #adapter.actions > 0 then
+            local action_row_children = {ui.spacer()}
+            for _, action in ipairs(adapter.actions) do
+                table.insert(action_row_children, ui.button({
+                    glyph = action.glyph,
+                    text = action.name,
+                    variant = "default",
+                    tooltip = action.tip,
+                    onClick = function()
+                        adapter_action(adapter.name, action.command)
+                    end,
+                }))
+            end
+            table.insert(info_column, ui.row({ gap = 8 }, action_row_children))
+        end
+        table.insert(children, ui.row({
+            paddingH = 8,
+            paddingV = 8,
+            borderWidth = 1,
+            fill = "surface_variant",
+            border = "outline",
+            radius = 10,
+            align = "start",
+            gap = 8
+        },
+        {
+            ui.glyph({ name = "info-circle", color = "on_surface_variant" }),
+            ui.column({ flexGrow = 1, gap = 4 }, info_column)
+        }))
     end
 
     for _, package in ipairs(adapter.updates) do

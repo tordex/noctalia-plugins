@@ -85,7 +85,10 @@ def get_real_flatpak_updates():
                     })
 
     updates.sort(key=lambda x: x["name"].lower())
-    return updates
+    return {
+        "info": "",
+        "updates": updates
+    }
 
 
 if __name__ == "__main__":
