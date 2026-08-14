@@ -10,9 +10,9 @@
       "description": "Show the number of pending updates next to the bar glyph.",
       "label": "Show the update count"
     },
-    "auto_check_hours": {
-      "description": "Check for updates automatically every N hours. 0 (default) never checks on its own — nothing runs until you ask for it.",
-      "label": "Auto-check interval (hours)"
+    "auto_check_minutes": {
+      "description": "Check for updates automatically every N minutes. if <= 10 never checks on its own — nothing runs until you ask for it.",
+      "label": "Auto-check interval (minutes)"
     },
     "notify_on_updates": {
       "description": "Send a desktop notification when a check finds packages to upgrade.",
@@ -32,6 +32,8 @@
     "other": "{count} packages to upgrade"
   },
   "status_clean": "Everything is up to date",
+  "status_never_checked": "Updates have never been checked",
+  "last_check_time": "Last checked: {time}",
   "status_checking": "Checking for updates…",
   "status_updating": "Downloading and applying updates…",
   "tip_check": "Check for updates now",

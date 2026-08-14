@@ -15,6 +15,7 @@ local SKIN_TASK_ICON_SIZE = 20
 
 local SKIN_TITLE_FONT_SIZE = 16
 local SKIN_HEAD_LINE_FONT_SIZE = 16
+local SKIN_DATE_FONT_SIZE = 12
 
 local SKIN_UPDATE_LOG_FONT_SIZE = 10
 
@@ -46,9 +47,11 @@ local function headline()
     else
         if totalOf() > 0 then
             return noctalia.trp("status_idle", totalOf(), {}), "primary"
-        else
+        end
+        if state ~= nil and state.last_check_time ~= nil then
             return tr("status_clean"), "on_surface"
         end
+        return tr("status_never_checked"), "on_surface"
     end
 end
 
@@ -318,7 +321,7 @@ end
 
 local function render()
 
-    local text, color = headline()
+    local headline_text, color = headline()
     local phase = phaseOf()
     local hasUpdates = totalOf() > 0 and phase == "idle"
 
@@ -366,8 +369,12 @@ local function render()
                 end,
             }),
         }),
-        ui.label({ text = text, color = color, maxLines = 2, fontSize = SKIN_HEAD_LINE_FONT_SIZE }),
+        ui.label({ text = headline_text, color = color, maxLines = 2, fontSize = SKIN_HEAD_LINE_FONT_SIZE }),
     }
+    if state ~= nil and not busy() and state.last_check_time ~= nil then
+        local last_check_time = os.date("%Y-%m-%d %H:%M:%S", state.last_check_time)
+        table.insert(children, ui.label({ text = tr("last_check_time", { time = last_check_time }), color = "on_surface_variant", maxLines = 1, fontSize = SKIN_DATE_FONT_SIZE }))
+    end
 
 
     local rows = {}
@@ -429,7 +436,7 @@ local function render()
         }),
     }))
 
-    panel.render(ui.column({ flexGrow = 1, gap = 10, align = "stretch" }, children))
+    panel.render(ui.column({ flexGrow = 1, gap = 4, align = "stretch" }, children))
 end
 
 function onOpen(_context)

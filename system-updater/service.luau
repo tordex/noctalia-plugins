@@ -16,6 +16,9 @@
 -- }
 local adapters = {}
 
+local startup_time = os.time()
+local last_check_time = nil
+
 -- The adapter that should be rechecked after an update is completed.
 -- This is used to recheck for updates after an update is completed, so that the user can see if there are any new updates available.
 local recheck_adapter = nil
@@ -82,7 +85,7 @@ function publish_state()
                 total = adapter.total,
                 updates = adapter.updates,
                 info = adapter.info,
-                actions = adapter.show_actions
+                actions = adapter.show_actions,
             })
         end
     end
@@ -92,6 +95,7 @@ function publish_state()
         adapters = items,
         task_checking = task_checking,
         task_updating = task_updating,
+        last_check_time = last_check_time,
     })
 end
 
@@ -185,6 +189,7 @@ local function start_check(adapter_name)
 
     if #task_checking.pending > 0 then
         state = "checking"
+        last_check_time = os.time()
         publish_state()
         start_check_queue()
     else
@@ -363,6 +368,26 @@ noctalia.state.watch("adapter_action", function(value)
         end
     end, 60000)
 end)
+
+function update()
+    local auto_check_minutes = cfg("auto_check_minutes") or 0
+    if auto_check_minutes > 10 then
+        if last_check_time == nil and startup_time ~= nil then
+            local now = os.time()
+            -- If the system updater has never checked for updates, we check for updates 5 minutes after startup.
+            if os.difftime(now, startup_time) >= 5 * 60 then
+                startup_time = nil
+                start_check()
+            end
+        elseif last_check_time ~= nil then
+            local now = os.time()
+            if os.difftime(now, last_check_time) >= 60 * auto_check_minutes then
+                last_check_time = now
+                start_check()
+            end
+        end
+    end
+end
 
 noctalia.setUpdateInterval(1000)
 adapters = load_adapters()
