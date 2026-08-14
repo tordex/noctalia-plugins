@@ -1,6 +1,7 @@
 import subprocess
 import json
 import re
+import sys
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk
@@ -36,21 +37,18 @@ def icon_path(icon_name, size=48):
     #return get_icon_path(default_icon_name, size)
     return None  # Return None if no icon is found
 
-def run_process_json(command, multiline=False):
-    try:
-        proc = subprocess.Popen(
-            command,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
-        )
-        stdout, _ = proc.communicate(input="1\n")
-        if multiline:
-            return [json.loads(line) for line in stdout.splitlines() if line.strip()]
-        return json.loads(stdout)
-    except Exception as e:
-        return []
+def refresh_updates():
+    proc = subprocess.run(["pkgcli", "refresh", "force"], capture_output=True)
+    if proc.returncode != 0:
+        print(proc.stderr.decode(), file=sys.stderr)
+        exit(1)
+
+def get_updates_list():
+    proc = subprocess.run(["pkgcli", "list-updates", "--json"], capture_output=True)
+    if proc.returncode != 0:
+        print(proc.stderr.decode(), file=sys.stderr)
+        exit(1)
+    return [json.loads(line) for line in proc.stdout.decode().splitlines() if line.strip()]
 
 def get_package_info(package_name):
     try:
@@ -81,8 +79,10 @@ def get_package_info(package_name):
         }
 
 def package_kit_updates():
-    # Run pkcon get-updates --json
-    updates = run_process_json(["pkgcli", "list-updates", "--json"], True)
+
+    refresh_updates()
+
+    updates = get_updates_list()
 
     out = []
 

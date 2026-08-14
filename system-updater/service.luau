@@ -11,7 +11,7 @@ local recheck_adapter = nil
 -- {
 --     cmd = "command to run",
 --     adapter = "adapter name",
---     phase = "refresh" or "check",
+--     phase = "check",
 --     state = "waiting" or "running" or "done" or "error",
 --     error_msg = "error message if any"
 -- }
@@ -42,7 +42,7 @@ local function err(msg)
     noctalia.log("[ERR][system-updater] " .. msg)
 end
 
--- Load the adapters from the plugin's adapters directory.  Each adapter is a JSON file with a name, a check command, and an optional refresh command.
+-- Load the adapters from the plugin's adapters directory.  Each adapter is a JSON file with a name and a check command.
 local function load_adapters()
     local str = noctalia.readFile(noctalia.pluginDir() .. "/adapters/adapters.json")
     local out = noctalia.json.decode(str)
@@ -134,7 +134,7 @@ start_check_queue = function()
     end, 60000)
 end
 
--- Start a check for updates.  This will run the refresh command for each enabled adapter, followed by the check command for each enabled adapter.
+-- Start a check for updates.  This will run the check command for each enabled adapter.
 local function start_check(adapter_name)
     if adapters == nil then
         err("Adapters are empty")
@@ -152,15 +152,6 @@ local function start_check(adapter_name)
     for name, adapter in pairs(adapters) do
         if adapter.enabled and (adapter_name == nil or adapter_name == name) then
             adapters[name].error_msg = {}
-            if adapter.refresh_command ~= "" then
-                table.insert(task_checking.pending, {
-                    cmd = string.gsub(adapter.refresh_command, "{plugin_dir}", noctalia.pluginDir()),
-                    adapter = name,
-                    phase = "refresh",
-                    state = "waiting",
-                    error_msg = ""
-                })
-            end
             table.insert(task_checking.pending, {
                 cmd = string.gsub(adapter.check_command, "{plugin_dir}", noctalia.pluginDir()),
                 adapter = name,
