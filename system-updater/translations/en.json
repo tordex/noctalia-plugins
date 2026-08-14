@@ -33,6 +33,7 @@
   },
   "status_clean": "Everything is up to date",
   "status_checking": "Checking for updates…",
+  "status_updating": "Downloading and applying updates…",
   "tip_check": "Check for updates now",
   "tip_check_adapter": "Check for updates for {adapter} now",
   "tip_close": "Close",

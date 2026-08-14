@@ -52,7 +52,6 @@ end
 noctalia.state.watch("state", function(value)
     if type(value) == "table" then
         state = value
-        log("State updated: state=" .. tostring(state.state) .. " total=" .. tostring(state.total))
         render()
     end
 end)

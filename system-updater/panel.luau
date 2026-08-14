@@ -8,13 +8,15 @@ local SKIN_PKG_ICON_SIZE = 48
 local SKIN_ADAPTER_TITLE_FONT_SIZE = 16
 
 local SKIN_ERRMSG_ICON_SIZE = 24
-local SKIN_ERRMSG_FONT_SIZE = 14
+local SKIN_ERRMSG_FONT_SIZE = 10
 
 local SKIN_TASK_FONT_SIZE = 16
 local SKIN_TASK_ICON_SIZE = 20
 
 local SKIN_TITLE_FONT_SIZE = 16
 local SKIN_HEAD_LINE_FONT_SIZE = 16
+
+local SKIN_UPDATE_LOG_FONT_SIZE = 10
 
 local state = nil
 
@@ -32,13 +34,15 @@ end
 
 local function busy()
     local phase = phaseOf()
-    return phase == "checking"
+    return phase ~= "idle"
 end
 
 local function headline()
     local phase = phaseOf()
     if phase == "checking" then
         return tr("status_checking"), "secondary"
+    elseif phase == "updating" then
+        return tr("status_updating"), "secondary"
     else
         if totalOf() > 0 then
             return noctalia.trp("status_idle", totalOf(), {}), "primary"
@@ -52,7 +56,7 @@ local function request(action, adapter, package_id)
     noctalia.state.set("request", {
         action = action,
         adapter = adapter,
-        package_id = package_id,
+        package = package_id,
     })
 end
 
@@ -72,7 +76,7 @@ local function packageRow(item, adapter_name)
         table.insert(children, ui.label({ text = item.to_version, fontSize = SKIN_PKG_VERSION_FONT_SIZE, color = "secondary", flexGrow = 1, maxLines = 1, fontWeight = "bold" }))
     end
 
-    local row_childs  ={}
+    local row_childs = {}
     if item.icon ~= "" and item.icon ~= nil then
         table.insert(row_childs, ui.image({ path = item.icon, width = SKIN_PKG_ICON_SIZE, height = SKIN_PKG_ICON_SIZE, fit = "stretch" }))
     else
@@ -147,7 +151,7 @@ local function adapterRow(adapter)
             },
             {
                 ui.glyph({ name = "alert-circle", size = SKIN_ERRMSG_ICON_SIZE, color = "on_error" }),
-                ui.label({ text = msg.message, fontSize = SKIN_ERRMSG_FONT_SIZE, color = "on_error", flexGrow = 1, maxLines = 1 }),
+                ui.label({ text = msg.message, fontSize = SKIN_ERRMSG_FONT_SIZE, fontFamily = "monospace", color = "on_error", flexGrow = 1, maxLines = 1 }),
                 ui.button({ 
                     glyph = "clipboard",
                     variant = "default",
@@ -161,7 +165,7 @@ local function adapterRow(adapter)
     end
 
     for _, package in ipairs(adapter.updates) do
-        table.insert(children, packageRow(package))
+        table.insert(children, packageRow(package, adapter.name))
     end
 
     return ui.column({
@@ -169,7 +173,7 @@ local function adapterRow(adapter)
     }, children)
 end
 
-local function taskRow(task)
+local function checkTaskRow(task)
     local state_options = {
         waiting = {
             glyph = "hourglass",
@@ -200,6 +204,63 @@ local function taskRow(task)
     if task.error_msg ~= "" then
         table.insert(children, ui.label({ text = task.error_msg, fontSize = SKIN_ERRMSG_FONT_SIZE, color = state_options[task.state].text_color, flexGrow = 1, maxLines = 2 }))
     end
+
+    return ui.row({
+        paddingH = 8,
+        paddingV = 8,
+        borderWidth = 1,
+        fill = state_options[task.state].bk_color,
+        border = "outline",
+        radius = 12,
+        align = "start",
+        gap = 4
+    }, {
+        ui.glyph({ name = state_options[task.state].glyph, size = SKIN_TASK_ICON_SIZE, color = state_options[task.state].text_color }),
+        ui.column({ flexGrow = 1 }, children)
+    })
+end
+
+local function updateTaskRow(task)
+    local state_options = {
+        waiting = {
+            glyph = "hourglass",
+            bk_color = "surface_variant",
+            text_color = "on_surface_variant"
+        },
+        running = {
+            glyph = "download",
+            bk_color = "hover",
+            text_color = "on_hover"
+        },
+        done = {
+            glyph = "check",
+            bk_color = "surface_variant",
+            text_color = "on_surface_variant"
+        },
+        error = {
+            glyph = "x",
+            bk_color = "error",
+            text_color = "on_error"
+        }
+    }
+
+    local children = {
+        ui.label({ 
+            text = task.adapter .. (task.package ~= nil and (" [" .. task.package .. "]") or ""), 
+            fontSize = SKIN_TASK_FONT_SIZE,
+            color = state_options[task.state].text_color, 
+            flexGrow = 1, 
+            maxLines = 1, 
+            fontWeight = "bold" }),
+    }
+
+    table.insert(children, ui.label({ 
+        text = task.stdout, 
+        fontSize = SKIN_UPDATE_LOG_FONT_SIZE, 
+        fontFamily = "monospace",
+        color = state_options[task.state].text_color, 
+        flexGrow = 1, 
+        maxLines = 1 }))
 
     return ui.row({
         paddingH = 8,
@@ -272,20 +333,31 @@ local function render()
 
     local rows = {}
     local stickToBottom = false
-    if state.state == "idle" then
-        -- Show the adapters and their updates when idle
-        for _, adapter in pairs(state.adapters) do
-            table.insert(rows, adapterRow(adapter))
+    if state ~= nil then
+        if state.state == "idle" then
+            -- Show the adapters and their updates when idle
+            for _, adapter in pairs(state.adapters) do
+                table.insert(rows, adapterRow(adapter))
+            end
+        elseif state.state == "checking" then
+            -- Show the tasks when checking for updates
+            for _, task in ipairs(state.task_checking.finished) do
+                table.insert(rows, checkTaskRow(task))
+            end
+            for _, task in ipairs(state.task_checking.pending) do
+                table.insert(rows, checkTaskRow(task))
+            end
+            stickToBottom = true
+        elseif state.state == "updating" then
+            -- Show the tasks when updating
+            for _, task in ipairs(state.task_updating.finished) do
+                table.insert(rows, updateTaskRow(task))
+            end
+            for _, task in ipairs(state.task_updating.pending) do
+                table.insert(rows, updateTaskRow(task))
+            end
+            stickToBottom = true
         end
-    elseif state.state == "checking" then
-        -- Show the tasks when checking for updates
-        for _, task in ipairs(state.task_checking.finished) do
-            table.insert(rows, taskRow(task))
-        end
-        for _, task in ipairs(state.task_checking.pending) do
-            table.insert(rows, taskRow(task))
-        end
-        stickToBottom = true
     end
 
     table.insert(children, ui.scroll({ flexGrow = 1, gap = 6, stickToBottom = stickToBottom }, rows))
@@ -335,4 +407,5 @@ noctalia.state.watch("state", function(value)
     render()
 end)
 
+state = noctalia.state.get("state")
 render()

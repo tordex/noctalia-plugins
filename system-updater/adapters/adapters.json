@@ -5,7 +5,7 @@
         "check_command": "python {plugin_dir}/adapters/packagekit-check.py",
         "refresh_command": "pkgcli refresh",
         "update_package_command": "pkgcli -y -q update {package_name}",
-        "update_all_command": "pkgcli offline-update prepare;pkgcli offline-update trigger"
+        "update_all_command": "pkgcli -y -q offline-update prepare"
     },
     "Flatpak": {
         "enabled": true,

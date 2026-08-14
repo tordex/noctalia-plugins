@@ -4,6 +4,8 @@ local adapters = {}
 local checking_pending_tasks = {}
 local finished_tasks = {}
 
+local recheck_adapter = nil
+
 -- Table with pending and finished tasks for checking updates.
 -- task structure:
 -- {
@@ -76,11 +78,18 @@ function publish_state()
 end
 
 local start_check_queue
+local start_update_queue
 
-local function next_task()
+local function next_check_task()
     table.insert(task_checking.finished, task_checking.pending[1])
     table.remove(task_checking.pending, 1)
     start_check_queue()
+end
+
+local function next_update_task()
+    table.insert(task_updating.finished, task_updating.pending[1])
+    table.remove(task_updating.pending, 1)
+    start_update_queue()
 end
 
 -- Start the next command in the run queue, if any.  This is called after each command completes, and will start the next command in the queue.
@@ -121,7 +130,7 @@ start_check_queue = function()
             adapters[adapter].total = #adapters[adapter].updates
         end
         publish_state()
-        next_task()
+        next_check_task()
     end, 60000)
 end
 
@@ -172,8 +181,60 @@ local function start_check(adapter_name)
     end
 end
 
+local function starts_with(str: string, prefix: string): boolean
+    return string.sub(str, 1, #prefix) == prefix
+end
+
+-- Start the next command in the run queue, if any.  This is called after each command completes, and will start the next command in the queue.
+start_update_queue = function()
+    if #task_updating.pending == 0 then
+        state = "idle"
+        start_check(recheck_adapter)
+        return
+    end
+
+    local cmd = task_updating.pending[1].cmd
+    local adapter = task_updating.pending[1].adapter
+    task_updating.pending[1].state = "running"
+    publish_state()
+    log("Running update command: " .. cmd)
+    noctalia.runStream(cmd, function(line: string)
+        local start_prefix = "tordex/system-updater:pid:"
+        local done_prefix = "tordex/system-updater:done:"
+
+        if starts_with(line, start_prefix) then
+            local pid = tonumber(string.sub(line, #start_prefix + 1))
+            task_updating.pending[1].pid = pid
+            log("Update task started with PID " .. tostring(pid))
+            publish_state()
+        elseif starts_with(line, done_prefix) then
+            local exitCode = tonumber(string.sub(line, #done_prefix + 1))
+            log("Update task finished with exit code " .. tostring(exitCode))
+            if exitCode ~= 0 then
+                task_updating.pending[1].state = "error"
+                table.insert(adapters[adapter].error_msg, {
+                    phase = "update",
+                    message = task_updating.pending[1].stdout
+                })
+            else
+                task_updating.pending[1].state = "done"
+            end
+            publish_state()
+            next_update_task()
+        else
+            log("Update log: " .. line)
+            task_updating.pending[1].stdout = task_updating.pending[1].stdout .. line .. "\n"
+            publish_state()
+        end
+    end)
+end
+
+local function wrap_update_command(cmd)
+    return "echo tordex/system-updater:pid:$$;(" .. cmd .. ") 2>&1;echo tordex/system-updater:done:$?"
+end
+
 local function start_update(adapter_name, package)
-    log("Starting update")
+    log("Starting update: adapter=" .. (adapter_name or "all") .. " package=" .. (package or "all"))
     if adapters == nil then
         err("Adapters are empty")
         return
@@ -182,8 +243,67 @@ local function start_update(adapter_name, package)
         err("System updater is busy")
         return
     end
+
+    table.clear(task_updating.pending)
+    table.clear(task_updating.finished)
+    recheck_adapter = adapter_name
+
+    if adapter_name ~= nil and package ~= nil then
+        -- Update a single package using the specified adapter
+        log("Updating package " .. package .. " using adapter " .. adapter_name)
+        local adapter = adapters[adapter_name]
+        if adapter ~= nil and adapter.enabled then
+            local cmd = string.gsub(adapter.update_package_command, "{package_name}", package)
+            cmd = string.gsub(cmd, "{plugin_dir}", noctalia.pluginDir())
+            if cmd == nil or cmd == "" then
+                err("Adapter " .. adapter_name .. " does not support updating single packages")
+                return
+            end
+            adapters[adapter_name].error_msg = {}
+            cmd = wrap_update_command(cmd)
+            table.insert(task_updating.pending, {
+                cmd = cmd,
+                adapter = adapter_name,
+                package = package,
+                state = "waiting",
+                stdout = "",
+                pid = nil
+            })
+        end
+    else
+        -- Update all packages for all or specified enabled adapters
+        log("Updating all packages for adapters" .. (adapter_name ~= nil and (" " .. adapter_name) or "") .. " package: " .. (package ~= nil and package or "nil"))
+        for name, adapter in pairs(adapters) do
+            log("command: " .. adapter.update_all_command .. " adapter_name: " .. (adapter_name or "nil"))
+            if adapter.enabled and adapter.total > 0 and adapter.update_all_command ~= nil and (adapter_name == nil or name == adapter_name) then
+                local cmd = string.gsub(adapter.update_all_command, "{plugin_dir}", noctalia.pluginDir())
+                if cmd == nil or cmd == "" then
+                    err("Adapter " .. name .. " does not support updating all packages")
+                    continue
+                end
+                adapters[name].error_msg = {}
+                cmd = wrap_update_command(cmd)
+                table.insert(task_updating.pending, {
+                    cmd = cmd,
+                    adapter = name,
+                    package = package,
+                    state = "waiting",
+                    stdout = "",
+                    pid = nil
+                })
+            end
+        end
+    end
+
+    if #task_updating.pending > 0 then
+        state = "updating"
+        publish_state()
+        start_update_queue()
+    else
+        state = "idle"
+        publish_state()
+    end
 end
-    
 
 function handle(action, adapter, package)
     if action == "check" then
@@ -207,3 +327,4 @@ end)
 
 noctalia.setUpdateInterval(1000)
 adapters = load_adapters()
+publish_state()
