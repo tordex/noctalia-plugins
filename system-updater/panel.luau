@@ -294,8 +294,8 @@ local function updateTaskRow(task)
         },
         running = {
             glyph = "download",
-            bk_color = "hover",
-            text_color = "on_hover"
+            bk_color = "surface_variant",
+            text_color = "on_surface"
         },
         done = {
             glyph = "check",
@@ -309,36 +309,35 @@ local function updateTaskRow(task)
         }
     }
 
-    local children = {
+    local title_row = ui.row({ gap = 8 }, {
+        ui.glyph({ name = state_options[task.state].glyph, color = state_options[task.state].text_color }),
         ui.label({ 
             text = task.adapter .. (task.package ~= nil and (" [" .. task.package .. "]") or ""), 
-            fontSize = SKIN_TASK_FONT_SIZE,
             color = state_options[task.state].text_color, 
             flexGrow = 1, 
             maxLines = 1, 
-            fontWeight = "bold" }),
-    }
+            fontWeight = "bold" 
+        }),
+    })
 
-    table.insert(children, ui.label({ 
-        text = task.stdout, 
-        fontSize = SKIN_UPDATE_LOG_FONT_SIZE, 
-        fontFamily = "monospace",
-        color = state_options[task.state].text_color, 
-        flexGrow = 1, 
-        maxLines = 1 }))
-
-    return ui.row({
+    return ui.column({
         paddingH = 8,
         paddingV = 8,
         borderWidth = 1,
         fill = state_options[task.state].bk_color,
         border = "outline",
         radius = 12,
-        align = "start",
+        flexGrow = 1,
         gap = 4
     }, {
-        ui.glyph({ name = state_options[task.state].glyph, size = SKIN_TASK_ICON_SIZE, color = state_options[task.state].text_color }),
-        ui.column({ flexGrow = 1 }, children)
+        title_row,
+        ui.label({ 
+            text = task.stdout, 
+            fontSize = SKIN_UPDATE_LOG_FONT_SIZE, 
+            fontFamily = "monospace",
+            color = state_options[task.state].text_color, 
+            flexGrow = 1, 
+            maxLines = 1 })
     })
 end
 

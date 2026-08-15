@@ -45,7 +45,6 @@ local task_updating = {
 }
 
 local state = "idle"
-local total_updates = 0
 
 local function cfg(key)
     return noctalia.getConfig(key)
@@ -119,6 +118,8 @@ end
 -- This is used by the widget and panel to display the current state of the system updater.
 function publish_state()
     local items = {}
+    local updates_count = 0
+    local error = false
     for name, adapter in pairs(adapters) do
         if adapter.enabled then
             table.insert(items, {
@@ -129,11 +130,16 @@ function publish_state()
                 info = adapter.info,
                 actions = adapter.show_actions,
             })
+            updates_count = updates_count + adapter.total
+            if adapter.error_msg ~= nil and #adapter.error_msg > 0 then
+                error = true
+            end
         end
     end
     noctalia.state.set("state", {
         state = state,
-        total = total_updates,
+        error = error,
+        total = updates_count,
         adapters = items,
         task_checking = task_checking,
         task_updating = task_updating,
@@ -166,10 +172,6 @@ end
 start_check_queue = function()
     if #task_checking.pending == 0 then
         state = "idle"
-        total_updates = 0
-        for _, adapter in pairs(adapters) do
-            total_updates = total_updates + adapter.total
-        end
         publish_state()
         return
     end
@@ -220,11 +222,11 @@ local function start_check(adapter_name)
 
     table.clear(task_checking.pending)
     table.clear(task_checking.finished)
-    total_updates = 0
 
     for name, adapter in pairs(adapters) do
         if adapter.enabled and (adapter_name == nil or adapter_name == name) then
             adapters[name].error_msg = {}
+            adapters[name].total = 0
             table.insert(task_checking.pending, {
                 cmd = string.gsub(adapter.check_command, "{plugin_dir}", noctalia.pluginDir()),
                 adapter = name,
