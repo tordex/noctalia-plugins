@@ -210,7 +210,7 @@ start_check_queue = function()
 end
 
 -- Start a check for updates.  This will run the check command for each enabled adapter.
-local function start_check(adapter_name)
+local function start_check(adapter_names)
     if adapters == nil then
         err("Adapters are empty")
         return
@@ -224,7 +224,7 @@ local function start_check(adapter_name)
     table.clear(task_checking.finished)
 
     for name, adapter in pairs(adapters) do
-        if adapter.enabled and (adapter_name == nil or adapter_name == name) then
+        if adapter.enabled and (adapter_names == nil or table.find(adapter_names, name)) then
             adapters[name].error_msg = {}
             adapters[name].total = 0
             table.insert(task_checking.pending, {
@@ -371,7 +371,11 @@ end
 
 local function handle(action, adapter, package)
     if action == "check" then
-        start_check(adapter)
+        if adapter ~= nil then
+            start_check({adapter})
+        else
+            start_check()
+        end
     elseif action == "update" then
         start_update(adapter, package)
     end
@@ -415,7 +419,7 @@ noctalia.state.watch("adapter_action", function(value)
         else
             if check_after then
                 state = "idle"
-                start_check(adapter)
+                start_check({adapter})
             else
                 state = "idle"
                 publish_state()
