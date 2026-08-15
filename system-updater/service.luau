@@ -387,6 +387,15 @@ noctalia.state.watch("request", function(value)
     handle(value.action, value.adapter, value.package)
 end)
 
+noctalia.state.watch("del_error", function(value)
+    local adapter = value.adapter
+    local idx = value.idx
+    if adapters[adapter] ~= nil and adapters[adapter].error_msg[idx] ~= nil then
+        table.remove(adapters[adapter].error_msg, idx)
+        publish_state()
+    end
+end)
+
 noctalia.state.watch("adapter_action", function(value)
     local adapter = value.adapter
     local cmd = adapters[adapter].actions[value.action].command

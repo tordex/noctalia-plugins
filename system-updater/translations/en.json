@@ -46,8 +46,12 @@
   "tip_settings": "Plugin settings",
   "tip_update": "Update pending packages",
   "tip_update_adapter": "Update pending packages for {adapter}",
+  "tip_delete_error": "Delete this error message",
   "title": "System Updates Manager",
   "error_timeout": "The command timed out.",
   "tip_copy_to_clipboard": "Copy text to clipboard",
-  "tip_update_package": "Update the selected package"
+  "tip_update_package": "Update the selected package",
+  "error_phase_update": "Error occurred while updating",
+  "error_phase_check": "Error occurred while checking for updates",
+  "error_phase_action": "Error occurred while performing the action"
 }

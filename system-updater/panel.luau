@@ -21,6 +21,9 @@ local SKIN_UPDATE_LOG_FONT_SIZE = 10
 
 local state = nil
 
+-- Forward declaration of the render function, so it can be called from other functions before it is defined.
+local render = nil
+
 local function tr(key, args)
     return noctalia.tr(key, args)
 end
@@ -148,29 +151,49 @@ local function adapterRow(adapter)
     table.insert(children, ui.row({ gap = 8, align = "center" }, title_children))
 
     if #adapter.error_msg > 0 then
-        for _, msg in ipairs(adapter.error_msg) do
-            table.insert(children, ui.row({
-                paddingH = 8,
-                paddingV = 8,
-                borderWidth = 1,
-                fill = "error",
-                border = "on_error",
-                radius = 10,
-                align = "start",
-                gap = 8
-            },
-            {
-                ui.glyph({ name = "alert-circle", size = SKIN_ERRMSG_ICON_SIZE, color = "on_error" }),
-                ui.label({ text = msg.message, fontSize = SKIN_ERRMSG_FONT_SIZE, fontFamily = "monospace", color = "on_error", flexGrow = 1, maxLines = 1 }),
-                ui.button({ 
-                    glyph = "clipboard",
-                    variant = "default",
-                    tooltip = tr("tip_copy_to_clipboard"),
-                    onClick = function()
-                        noctalia.copyToClipboard(msg.message, "text/plain")
-                    end,
-                })
-            }))
+        for idx, msg in ipairs(adapter.error_msg) do
+            table.insert(children, 
+                ui.column({
+                    paddingH = 8,
+                    paddingV = 8,
+                    borderWidth = 1,
+                    fill = "error",
+                    border = "on_error",
+                    radius = 10,
+                    flexGrow = 1,
+                    gap = 8
+                },
+                {
+                    ui.row({ gap = 8, align = "center" },
+                        {
+                            ui.glyph({ name = "alert-circle", color = "on_error" }),
+                            ui.label({ text = tr("error_phase_" .. msg.phase), color = "on_error", flexGrow = 1, maxLines = 1 }),
+                            ui.button({ 
+                                glyph = "clipboard",
+                                variant = "default",
+                                controlSize = "sm",
+                                tooltip = tr("tip_copy_to_clipboard"),
+                                onClick = function()
+                                    noctalia.copyToClipboard(msg.message, "text/plain")
+                                end,
+                            }),
+                            ui.button({ 
+                                glyph = "trash",
+                                variant = "default",
+                                controlSize = "sm",
+                                tooltip = tr("tip_delete_error"),
+                                onClick = function()
+                                    table.remove(adapter.error_msg, idx)
+                                    noctalia.state.set("del_error", {
+                                        adapter = adapter.name,
+                                        idx = idx
+                                    })
+                                end,
+                            })
+                        }),
+                    ui.label({ text = msg.message, color = "on_error", fontSize = SKIN_ERRMSG_FONT_SIZE, fontFamily = "monospace", flexGrow = 1, maxLines = 1 }),
+                }
+            ))
         end
     end
     if adapter.info ~= nil and adapter.info ~= "" then
@@ -319,7 +342,7 @@ local function updateTaskRow(task)
     })
 end
 
-local function render()
+render = function()
 
     local headline_text, color = headline()
     local phase = phaseOf()
