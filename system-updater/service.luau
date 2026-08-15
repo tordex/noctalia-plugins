@@ -61,16 +61,42 @@ end
 
 -- Load the adapters from the plugin's adapters directory.  Each adapter is a JSON file with a name and a check command.
 local function load_adapters()
-    local str = noctalia.readFile(noctalia.pluginDir() .. "/adapters/adapters.json")
-    local out = noctalia.json.decode(str)
-    for name, adapter in out do
-        adapter.phase = "ready"
-        adapter.error_msg = ""
-        adapter.info = ""
-        adapter.show_actions = {}
-        adapter.total = 0
-        adapter.updates = {}
+    local dirs = {
+        noctalia.pluginDir() .. "/adapters",
+    }
+
+    local out = {}
+
+    for _, dir in ipairs(dirs) do
+        local sub_dirs = noctalia.listDir(dir)
+        for _, dir_name in ipairs(sub_dirs) do
+            local file_info = noctalia.fileInfo(dir .. "/" .. dir_name)
+            if file_info.isDir then
+                local adapter_dir = dir .. "/" .. dir_name
+                local adapter_json_file = adapter_dir .. "/adapter.json"
+                if noctalia.fileExists(adapter_json_file) then
+                    local str = noctalia.readFile(adapter_json_file)
+                    local adapter = noctalia.json.decode(str) or nil
+                    if adapter ~= nil and adapter.name ~= nil and adapter.check_command ~= nil then
+                        adapter.phase = "ready"
+                        adapter.error_msg = ""
+                        adapter.info = ""
+                        adapter.show_actions = {}
+                        adapter.total = 0
+                        adapter.updates = {}
+                        adapter.check_command = string.gsub(adapter.check_command, "{adapter_dir}", adapter_dir)
+                        adapter.update_package_command = string.gsub(adapter.update_package_command or "", "{adapter_dir}", adapter_dir)
+                        adapter.update_all_command = string.gsub(adapter.update_all_command or "", "{adapter_dir}", adapter_dir)
+                        out[adapter.name] = adapter
+                        log("Loaded adapter: " .. adapter.name .. " path " .. adapter_dir)
+                    else
+                        err("Invalid adapter definition in " .. adapter_json_file .. ". Adapter must have a name and a check_command.")
+                    end
+                end
+            end
+        end
     end
+    
     return out
 end
 
