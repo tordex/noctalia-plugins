@@ -90,7 +90,7 @@ local function packageRow(item, adapter_name)
     if item.icon ~= "" and item.icon ~= nil then
         table.insert(row_childs, ui.image({ path = item.icon, width = SKIN_PKG_ICON_SIZE, height = SKIN_PKG_ICON_SIZE, fit = "stretch" }))
     else
-        table.insert(row_childs, ui.glyph({ name = "package", size = SKIN_PKG_ICON_SIZE, color = "on_surface" }))
+        table.insert(row_childs, ui.glyph({ name = item.glyph or "package", size = SKIN_PKG_ICON_SIZE, color = "on_surface" }))
     end
     table.insert(row_childs, ui.column({ flexGrow = 1 }, children))
     table.insert(row_childs,

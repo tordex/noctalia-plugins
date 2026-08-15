@@ -69,6 +69,7 @@ def package_kit_updates():
             "id": update.get("name"),
             "name": update.get("name"),
             "icon": "",  # Placeholder for icon path, as Cargo doesn't provide icons
+            "glyph": "brand-rust",  # Placeholder glyph for Cargo packages
             "description": get_package_description(update.get("name")),
             "from_version": update.get("from_version", ""),
             "to_version": update.get("to_version", "")
