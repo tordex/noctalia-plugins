@@ -223,9 +223,9 @@ local function checkTaskRow(task)
             text_color = "on_surface_variant"
         },
         running = {
-            glyph = "player-play",
-            bk_color = "hover",
-            text_color = "on_hover"
+            glyph = "refresh",
+            bk_color = "surface_variant",
+            text_color = "primary"
         },
         done = {
             glyph = "check",
@@ -240,7 +240,7 @@ local function checkTaskRow(task)
     }
 
     local children = {
-        ui.label({ text = task.adapter .. " [" .. task.phase .. "]", fontSize = SKIN_TASK_FONT_SIZE, color = state_options[task.state].text_color, flexGrow = 1, maxLines = 1, fontWeight = "bold" }),
+        ui.label({ text = task.adapter, color = state_options[task.state].text_color, flexGrow = 1, maxLines = 1, fontWeight = "bold" }),
     }
 
     if task.error_msg ~= "" then
@@ -253,11 +253,11 @@ local function checkTaskRow(task)
         borderWidth = 1,
         fill = state_options[task.state].bk_color,
         border = "outline",
-        radius = 12,
+        radius = 4,
         align = "start",
         gap = 4
     }, {
-        ui.glyph({ name = state_options[task.state].glyph, size = SKIN_TASK_ICON_SIZE, color = state_options[task.state].text_color }),
+        ui.glyph({ name = state_options[task.state].glyph, color = state_options[task.state].text_color }),
         ui.column({ flexGrow = 1 }, children)
     })
 end
