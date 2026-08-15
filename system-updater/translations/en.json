@@ -14,6 +14,10 @@
       "description": "Check for updates automatically every N minutes. if <= 10 never checks on its own — nothing runs until you ask for it.",
       "label": "Auto-check interval (minutes)"
     },
+    "adapters_folder": {
+      "description": "The folder where adapters definitions are stored. One adapter per subfolder. Each adapter folder must contain an adapter.json with the adapter definition.",
+      "label": "Adapters folder"
+    },
     "notify_on_updates": {
       "description": "Send a desktop notification when a check finds packages to upgrade.",
       "label": "Notify when updates are found"

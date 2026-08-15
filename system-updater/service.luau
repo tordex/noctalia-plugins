@@ -21,7 +21,7 @@ local last_check_time = nil
 
 -- The adapter that should be rechecked after an update is completed.
 -- This is used to recheck for updates after an update is completed, so that the user can see if there are any new updates available.
-local recheck_adapter = nil
+local recheck_adapter = {}
 
 -- Table with pending and finished tasks for checking updates.
 -- task structure:
@@ -59,11 +59,17 @@ local function err(msg)
     noctalia.log("[ERR][system-updater] " .. msg)
 end
 
--- Load the adapters from the plugin's adapters directory.  Each adapter is a JSON file with a name and a check command.
+-- Load the adapters from the plugin's adapters directory. Each adapter is a JSON file with a name and a check command.
 local function load_adapters()
     local dirs = {
         noctalia.pluginDir() .. "/adapters",
     }
+    if cfg("adapters_folder") ~= nil and cfg("adapters_folder") ~= "" then
+        log("User adapters folder: " .. (cfg("adapters_folder") or "not set")) 
+        if noctalia.fileExists(cfg("adapters_folder")) then
+            table.insert(dirs, cfg("adapters_folder"))
+        end
+    end
 
     local out = {}
 
@@ -78,17 +84,26 @@ local function load_adapters()
                     local str = noctalia.readFile(adapter_json_file)
                     local adapter = noctalia.json.decode(str) or nil
                     if adapter ~= nil and adapter.name ~= nil and adapter.check_command ~= nil then
-                        adapter.phase = "ready"
-                        adapter.error_msg = ""
-                        adapter.info = ""
-                        adapter.show_actions = {}
-                        adapter.total = 0
-                        adapter.updates = {}
-                        adapter.check_command = string.gsub(adapter.check_command, "{adapter_dir}", adapter_dir)
-                        adapter.update_package_command = string.gsub(adapter.update_package_command or "", "{adapter_dir}", adapter_dir)
-                        adapter.update_all_command = string.gsub(adapter.update_all_command or "", "{adapter_dir}", adapter_dir)
-                        out[adapter.name] = adapter
-                        log("Loaded adapter: " .. adapter.name .. " path " .. adapter_dir)
+                        for _, dep in ipairs(adapter.dependencies or {}) do
+                            if not noctalia.commandExists(dep) then
+                                err("Adapter " .. adapter.name .. " is missing dependency: " .. dep)
+                                adapter.enabled = false
+                            end
+                        end
+                        if adapter.enabled then
+                            adapter.error_msg = ""
+                            adapter.info = ""
+                            adapter.show_actions = {}
+                            adapter.total = 0
+                            adapter.updates = {}
+                            adapter.check_command = string.gsub(adapter.check_command, "{adapter_dir}", adapter_dir)
+                            adapter.update_package_command = string.gsub(adapter.update_package_command or "", "{adapter_dir}", adapter_dir)
+                            adapter.update_all_command = string.gsub(adapter.update_all_command or "", "{adapter_dir}", adapter_dir)
+                            out[adapter.name] = adapter
+                            log("Loaded adapter: " .. adapter.name .. " path " .. adapter_dir)
+                        else
+                            log("Adapter " .. adapter.name .. " is disabled")
+                        end
                     else
                         err("Invalid adapter definition in " .. adapter_json_file .. ". Adapter must have a name and a check_command.")
                     end
@@ -100,7 +115,8 @@ local function load_adapters()
     return out
 end
 
--- Publish the current state to the plugin's state store.  This is used by the widget and panel to display the current state of the system updater.
+-- Publish the current state to the plugin's state store.
+-- This is used by the widget and panel to display the current state of the system updater.
 function publish_state()
     local items = {}
     for name, adapter in pairs(adapters) do
@@ -125,22 +141,28 @@ function publish_state()
     })
 end
 
+-- Forward declarations of functions that are defined later in the file.
 local start_check_queue
 local start_update_queue
 
+-- Start the next command in the run queue, if any.
+-- This is called after each command completes, and will start the next command in the queue.
 local function next_check_task()
     table.insert(task_checking.finished, task_checking.pending[1])
     table.remove(task_checking.pending, 1)
     start_check_queue()
 end
 
+-- Start the next command in the run queue, if any.
+--This is called after each command completes, and will start the next command in the queue.
 local function next_update_task()
     table.insert(task_updating.finished, task_updating.pending[1])
     table.remove(task_updating.pending, 1)
     start_update_queue()
 end
 
--- Start the next command in the run queue, if any.  This is called after each command completes, and will start the next command in the queue.
+-- Start the next command in the run queue, if any.
+-- This is called after each command completes, and will start the next command in the queue.
 start_check_queue = function()
     if #task_checking.pending == 0 then
         state = "idle"
@@ -224,6 +246,7 @@ local function start_check(adapter_name)
     end
 end
 
+-- Helper function to check if a string starts with a given prefix.
 local function starts_with(str: string, prefix: string): boolean
     return string.sub(str, 1, #prefix) == prefix
 end
@@ -240,7 +263,6 @@ start_update_queue = function()
     local adapter = task_updating.pending[1].adapter
     task_updating.pending[1].state = "running"
     publish_state()
-    log("Running update command: " .. cmd)
     noctalia.runStream(cmd, function(line: string)
         local start_prefix = "tordex/system-updater:pid:"
         local done_prefix = "tordex/system-updater:done:"
@@ -248,7 +270,6 @@ start_update_queue = function()
         if starts_with(line, start_prefix) then
             local pid = tonumber(string.sub(line, #start_prefix + 1))
             task_updating.pending[1].pid = pid
-            log("Update task started with PID " .. tostring(pid))
             publish_state()
         elseif starts_with(line, done_prefix) then
             local exitCode = tonumber(string.sub(line, #done_prefix + 1))
@@ -261,23 +282,24 @@ start_update_queue = function()
                 })
             else
                 task_updating.pending[1].state = "done"
+                table.insert(recheck_adapter, adapter)
             end
             publish_state()
             next_update_task()
         else
-            log("Update log: " .. line)
             task_updating.pending[1].stdout = task_updating.pending[1].stdout .. line .. "\n"
             publish_state()
         end
     end)
 end
 
+-- Wrap the update command to capture the PID and exit code, so that we can track the progress of the update.
 local function wrap_update_command(cmd)
     return "echo tordex/system-updater:pid:$$;(" .. cmd .. ") 2>&1;echo tordex/system-updater:done:$?"
 end
 
+-- Start an update for the specified adapter and package. If no adapter or package is specified, all enabled adapters will be updated.
 local function start_update(adapter_name, package)
-    log("Starting update: adapter=" .. (adapter_name or "all") .. " package=" .. (package or "all"))
     if adapters == nil then
         err("Adapters are empty")
         return
@@ -289,11 +311,10 @@ local function start_update(adapter_name, package)
 
     table.clear(task_updating.pending)
     table.clear(task_updating.finished)
-    recheck_adapter = adapter_name
+    table.clear(recheck_adapter)
 
     if adapter_name ~= nil and package ~= nil then
         -- Update a single package using the specified adapter
-        log("Updating package " .. package .. " using adapter " .. adapter_name)
         local adapter = adapters[adapter_name]
         if adapter ~= nil and adapter.enabled then
             local cmd = string.gsub(adapter.update_package_command, "{package_name}", package)
@@ -315,9 +336,7 @@ local function start_update(adapter_name, package)
         end
     else
         -- Update all packages for all or specified enabled adapters
-        log("Updating all packages for adapters" .. (adapter_name ~= nil and (" " .. adapter_name) or "") .. " package: " .. (package ~= nil and package or "nil"))
         for name, adapter in pairs(adapters) do
-            log("command: " .. adapter.update_all_command .. " adapter_name: " .. (adapter_name or "nil"))
             if adapter.enabled and adapter.total > 0 and adapter.update_all_command ~= nil and (adapter_name == nil or name == adapter_name) then
                 local cmd = string.gsub(adapter.update_all_command, "{plugin_dir}", noctalia.pluginDir())
                 if cmd == nil or cmd == "" then
@@ -348,7 +367,7 @@ local function start_update(adapter_name, package)
     end
 end
 
-function handle(action, adapter, package)
+local function handle(action, adapter, package)
     if action == "check" then
         start_check(adapter)
     elseif action == "update" then
@@ -369,7 +388,6 @@ noctalia.state.watch("request", function(value)
 end)
 
 noctalia.state.watch("adapter_action", function(value)
-    log("Received adapter action request: adapter=" .. value.adapter .. " action=" .. value.action)
     local adapter = value.adapter
     local cmd = adapters[adapter].actions[value.action].command
     local check_after = adapters[adapter].actions[value.action].check_after

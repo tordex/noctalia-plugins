@@ -19,6 +19,13 @@ min = 0
 max = 1440
 
 [[setting]]
+key = "adapters_folder"
+type = "folder"
+label_key = "settings.adapters_folder.label"
+description_key = "settings.adapters_folder.description"
+default = ""
+
+[[setting]]
 key = "notify_on_updates"
 type = "bool"
 label_key = "settings.notify_on_updates.label"
