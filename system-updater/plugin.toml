@@ -4,8 +4,8 @@ version = "1.0.0"
 plugin_api = 20
 author = "tordex"
 license = "MIT"
-dependencies = []
-tags = ["dnf", "cargo", "flatpak", "update", "upgrade"]
+dependencies = "[pkgcli", "cargo", "cargo-install-update", "python", "flatpak"]
+tags = ["packagekit", "cargo", "flatpak", "update", "upgrade"]
 icon = "package"
 description = "Manage system updates (PackageKit, Flatpak, Cargo etc.)."
 
