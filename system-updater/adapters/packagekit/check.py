@@ -98,6 +98,7 @@ def package_kit_updates():
     if info != "":
         return {
             "info": info,
+            "info_key": "info_reboot_required",
             "actions": [
                 {
                     "name": "Cancel",
