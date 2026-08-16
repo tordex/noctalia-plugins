@@ -309,12 +309,11 @@ local function updateTaskRow(task)
         }
     }
 
-    local title_row = ui.row({ gap = 8 }, {
+    local title_row = ui.row({ gap = 8}, {
         ui.glyph({ name = state_options[task.state].glyph, color = state_options[task.state].text_color }),
         ui.label({ 
             text = task.adapter .. (task.package ~= nil and (" [" .. task.package .. "]") or ""), 
             color = state_options[task.state].text_color, 
-            flexGrow = 1, 
             maxLines = 1, 
             fontWeight = "bold" 
         }),
@@ -327,7 +326,6 @@ local function updateTaskRow(task)
         fill = state_options[task.state].bk_color,
         border = "outline",
         radius = 12,
-        flexGrow = 1,
         gap = 4
     }, {
         title_row,

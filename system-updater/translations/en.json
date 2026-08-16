@@ -19,8 +19,8 @@
       "label": "Adapters folder"
     },
     "notify_on_updates": {
-      "description": "Send a desktop notification when a check finds packages to upgrade.",
-      "label": "Notify when updates are found"
+      "description": "Send a desktop notification when a check finds packages to upgrade or after applying updates.",
+      "label": "Notify when updates are found or applied"
     }
   },
   "app": {
@@ -53,5 +53,15 @@
   "tip_update_package": "Update the selected package",
   "error_phase_update": "Error occurred while updating",
   "error_phase_check": "Error occurred while checking for updates",
-  "error_phase_action": "Error occurred while performing the action"
+  "error_phase_action": "Error occurred while performing the action",
+  "notify_update_finished_title": "System Updates Manager: Updates applied",
+  "notify_update_error_title": "System Updates Manager: Error applying updates",
+  "notify_update_body_success": "✔ {adapter}: done.",
+  "notify_update_body_error": "🗙 {adapter}: failed.",
+  "notify_check_finished_title": "System Updates Manager: Check completed",
+  "notify_check_error_title": "System Updates Manager: Error checking for updates",
+  "notify_check_body_found": "✔ {adapter}: {total} packages to upgrade.",
+  "notify_check_body_success": "✔ {adapter}: up to date.",
+  "notify_check_body_error": "🗙 {adapter}: failed.",
+  "notify_check_body_action": "✔ {adapter}: done, action required."
 }

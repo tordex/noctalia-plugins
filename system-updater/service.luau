@@ -172,6 +172,34 @@ end
 start_check_queue = function()
     if #task_checking.pending == 0 then
         state = "idle"
+        if cfg("notify_on_updates") == true then
+            local has_errors = false
+            local body = ""
+            for idx, task in ipairs(task_checking.finished) do
+                if idx > 1 then
+                    body = body .. "\n"
+                end
+                if task.state == "done" then
+                    if #adapters[task.adapter].show_actions > 0 then
+                        body = body .. noctalia.tr("notify_check_body_action", {adapter = task.adapter})
+                    else
+                        if adapters[task.adapter].total > 0 then
+                            body = body .. noctalia.tr("notify_check_body_found", {adapter = task.adapter, total = adapters[task.adapter].total})
+                        else
+                            body = body .. noctalia.tr("notify_check_body_success", {adapter = task.adapter})
+                        end
+                    end
+                elseif task.state == "error" then
+                    has_errors = true
+                    body = body .. noctalia.tr("notify_check_body_error", {adapter = task.adapter})
+                end
+            end
+            if has_errors then
+                noctalia.notifyError(noctalia.tr("notify_check_error_title"), body)
+            else
+                noctalia.notify(noctalia.tr("notify_check_finished_title"), body)
+            end
+        end
         publish_state()
         return
     end
@@ -257,6 +285,27 @@ end
 start_update_queue = function()
     if #task_updating.pending == 0 then
         state = "idle"
+        if cfg("notify_on_updates") == true then
+            local has_errors = false
+            local body = ""
+            for idx, task in ipairs(task_updating.finished) do
+                if idx > 1 then
+                    body = body .. "\n"
+                end
+                if task.state == "done" then
+                    body = body .. noctalia.tr("notify_update_body_success", {adapter = task.adapter})
+                    table.insert(recheck_adapter, task.adapter)
+                elseif task.state == "error" then
+                    has_errors = true
+                    body = body .. noctalia.tr("notify_update_body_error", {adapter = task.adapter})
+                end
+            end
+            if has_errors then
+                noctalia.notifyError(noctalia.tr("notify_update_error_title"), body)
+            else
+                noctalia.notify(noctalia.tr("notify_update_finished_title"), body)
+            end
+        end
         start_check(recheck_adapter)
         return
     end
