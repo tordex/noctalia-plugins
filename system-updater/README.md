@@ -12,6 +12,8 @@ Manage system updates inside the noctalia panel. Currently supported PackageKit,
 * Show application icon if found
 * Show number of pending packages in the bar widget
 
+![System Updates Manager panel](screenshots/panel.png)
+
 ## Plugin
 
 | Field | Value |

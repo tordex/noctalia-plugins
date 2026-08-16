@@ -5,7 +5,7 @@ plugin_api = 20
 author = "tordex"
 license = "MIT"
 dependencies = "[pkgcli", "cargo", "cargo-install-update", "python", "flatpak"]
-tags = ["packagekit", "cargo", "flatpak", "update", "upgrade"]
+tags = ["bar", "panel", "service", "system"]
 icon = "package"
 description = "Manage system updates (PackageKit, Flatpak, Cargo etc.)."
 
