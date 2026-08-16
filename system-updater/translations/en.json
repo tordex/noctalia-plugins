@@ -3,7 +3,7 @@
   "action_update": "Update",
   "settings": {
     "glyph": {
-      "description": "The glyph shown for the topgrade widget on the bar.",
+      "description": "The glyph shown for the system updater widget on the bar.",
       "label": "Bar glyph"
     },
     "show_count": {
@@ -23,14 +23,6 @@
       "label": "Notify when updates are found or applied"
     }
   },
-  "app": {
-    "phase_refresh": {
-      "text": "Refresh package information"
-    },
-    "phase_check": {
-      "text": "Check for updates"
-    }
-  },
   "status_idle": {
     "one": "1 package to upgrade",
     "other": "{count} packages to upgrade"
@@ -41,11 +33,11 @@
   "status_checking": "Checking for updates…",
   "status_updating": "Downloading and applying updates…",
   "tip_check": "Check for updates now",
-  "tip_check_adapter": "Check for updates for {adapter} now",
+  "tip_check_adapter": "{adapter}: Check for updates now",
   "tip_close": "Close",
   "tip_settings": "Plugin settings",
   "tip_update": "Update pending packages",
-  "tip_update_adapter": "Update pending packages for {adapter}",
+  "tip_update_adapter": "{adapter}: Update pending packages",
   "tip_delete_error": "Delete this error message",
   "title": "System Updates Manager",
   "error_timeout": "The command timed out.",
