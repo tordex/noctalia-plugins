@@ -10,6 +10,27 @@ icon = "package"
 description = "Manage system updates (PackageKit, Flatpak, Cargo etc.)."
 
 [[setting]]
+key = "enable_packagekit"
+type = "bool"
+label_key = "settings.enable_packagekit.label"
+description_key = "settings.enable_packagekit.description"
+default = true
+
+[[setting]]
+key = "enable_flatpak"
+type = "bool"
+label_key = "settings.enable_flatpak.label"
+description_key = "settings.enable_flatpak.description"
+default = true
+
+[[setting]]
+key = "enable_cargo"
+type = "bool"
+label_key = "settings.enable_cargo.label"
+description_key = "settings.enable_cargo.description"
+default = true
+
+[[setting]]
 key = "auto_check_minutes"
 type = "int"
 label_key = "settings.auto_check_minutes.label"

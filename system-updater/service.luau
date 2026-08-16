@@ -83,6 +83,14 @@ local function load_adapters()
                     local str = noctalia.readFile(adapter_json_file)
                     local adapter = noctalia.json.decode(str) or nil
                     if adapter ~= nil and adapter.name ~= nil and adapter.check_command ~= nil then
+                        if adapter.name == "PackageKit" and cfg("enable_packagekit") == false then
+                            adapter.enabled = false
+                        elseif adapter.name == "Flatpak" and cfg("enable_flatpak") == false then
+                            adapter.enabled = false
+                        elseif adapter.name == "Cargo" and cfg("enable_cargo") == false then
+                            adapter.enabled = false
+                        end
+
                         for _, dep in ipairs(adapter.dependencies or {}) do
                             if not noctalia.commandExists(dep) then
                                 err("Adapter " .. adapter.name .. " is missing dependency: " .. dep)

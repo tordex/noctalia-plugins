@@ -21,6 +21,18 @@
     "notify_on_updates": {
       "description": "Send a desktop notification when a check finds packages to upgrade or after applying updates.",
       "label": "Notify when updates are found or applied"
+    },
+    "enable_packagekit": {
+      "description": "Enable the PackageKit adapter for managing system updates.",
+      "label": "Enable PackageKit adapter"
+    },
+    "enable_flatpak": {
+      "description": "Enable the Flatpak adapter for managing system updates.",
+      "label": "Enable Flatpak adapter"
+    },
+    "enable_cargo": {
+      "description": "Enable the Cargo adapter for managing system updates.",
+      "label": "Enable Cargo adapter"
     }
   },
   "status_idle": {
