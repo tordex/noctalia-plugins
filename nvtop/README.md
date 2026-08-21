@@ -11,6 +11,7 @@ Monitor real-time information about your GPU status and running processes with n
 * Sort processes by any column by clicking its header
 * Customizable polling interval
 * Customizable colors for the sorted column
+* The plugin runs `nvtop` when the panel is opened and closes it when the panel is closed. This helps you save resources.
 
 ![NVTOP panel](screenshots/panel.png)
 
@@ -31,10 +32,29 @@ You can open the panel by binding it in your compositor or by setting the action
 
 ![Actions](screenshots/actions.png)
 
+```toml
+[widget.GPU_Usage]
+stat = "gpu_usage"
+type = "sysmon"
+
+    [widget.GPU_Usage.actions]
+    left = "panel-toggle tordex/nvtop:panel gpu"
+
+[widget.GPU_VRAM]
+stat = "gpu_vram_used"
+type = "sysmon"
+
+    [widget.GPU_VRAM.actions]
+    left = "panel-toggle tordex/nvtop:panel mem"
+```
+
+To open the panel from the command line, use:
 
 ```sh
-noctalia msg panel-toggle tordex/nvtop:panel <order_by>
+noctalia msg panel-toggle tordex/nvtop:panel [order_by]
 ```
+
+Possible values for `order_by`:
 
 | `order_by` value   | Effect                        |
 |--------------------|-------------------------------|
