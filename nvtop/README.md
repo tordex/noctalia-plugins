@@ -1,16 +1,16 @@
 # NVTOP
 
-Monitor real-time information about your GPU status and running processes using nvtop.
+Monitor real-time information about your GPU status and running processes with nvtop.
 
 # Features
 
 * Uses `nvtop` to monitor real-time information about your GPU status.
-* Multiple GPU support
-* View processes that use GPU
-* Processes columns: **PID**, **GPU Usage**, **Video Encoder Usage**, **Video Decoder Usage**, **GPU Memory Usage** and **Command Line**
-* Processes can be ordered by any column. Just click the column header
-* Customizable poll period
-* Customizable colors for the sort column
+* Support for multiple GPUs
+* View processes using the GPU
+* Process columns: **PID**, **GPU Usage**, **Video Encoder Usage**, **Video Decoder Usage**, **GPU Memory Usage**, and **Command Line**
+* Sort processes by any column by clicking its header
+* Customizable polling interval
+* Customizable colors for the sorted column
 
 ![NVTOP panel](screenshots/panel.png)
 
@@ -23,11 +23,11 @@ Monitor real-time information about your GPU status and running processes using 
 
 ## Requirements
 
-Plugin requires `nvtop`, `jq` and `pkill` to be installed into `$PATH`
+The plugin requires `nvtop`, `jq`, and `pkill` to be installed and available in `$PATH`.
 
 ## Usage
 
-You can open the panel by bind it in your compositor or by setting the action for `sysmon` widgets:
+You can open the panel by binding it in your compositor or by setting the action for `sysmon` widgets:
 
 ![Actions](screenshots/actions.png)
 
@@ -45,9 +45,9 @@ noctalia msg panel-toggle tordex/nvtop:panel <order_by>
 | `mem`              | GPU Memory Usage              |
 | `cmd`              | Order by Process Command Line |
 
-Without `order_by` panel opens with previouse sort mode.
+Without `order_by`, the panel opens with the previous sort mode.
 
-Add the `-` before `order_by` to reverse order. Example:
+Add `-` before `order_by` to reverse the sort order. For example:
 
 ```sh
 noctalia msg panel-toggle tordex/nvtop:panel -mem

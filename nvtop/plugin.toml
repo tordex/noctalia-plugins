@@ -7,7 +7,7 @@ license = "MIT"
 dependencies = ["nvtop", "jq", "pkill"]
 tags = ["panel", "system"]
 icon = "cpu"
-description = "Monitor real-time information about your GPU status and running processes using nvtop."
+description = "Monitor real-time information about your GPU status and running processes with nvtop."
 
 [[setting]]
 key = "delay"
