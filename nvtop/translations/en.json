@@ -41,6 +41,10 @@
         "label": "DEC",
         "tip": "Video Decoder Usage"
       },
+      "encode_decode": {
+        "label": "ENC/DEC",
+        "tip": "Video Encoder/Decoder Usage"
+      },
       "gpu_mem": {
         "label": "VRAM",
         "tip": "GPU Memory Usage"
