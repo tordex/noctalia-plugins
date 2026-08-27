@@ -492,19 +492,24 @@ local function render_processes_header(gpu_idx)
     }, children)
 end
 
+local hover_row_key = nil
+
 -- Render the list of processes for the selected GPU, with sortable columns.
 local function render_processes(gpu_idx)
     local children = {}
     local order_by = get_order_by(g_order_by_context, gpu_idx)
     for _, process in ipairs(nvtop_data[gpu_idx].processes) do
         local process_children = {}
+        local is_hovered = hover_row_key == "proc-row-" .. process.pid
         for _, column in ipairs(get_processes_data(gpu_idx)) do
-            local fill = "surface_variant"
-            local color = "on_surface"
+            local fill = is_hovered and "hover" or "surface_variant"
+            local color = is_hovered and "on_hover" or "on_surface"
             local fontWeight = "medium"
             if order_by == column.data_key or order_by == "-" .. column.data_key then
-                fill = noctalia.getConfig("sort_column_background") or "secondary"
-                color = noctalia.getConfig("sort_column_color") or "on_secondary"
+                if not is_hovered then
+                    fill = noctalia.getConfig("sort_column_background") or "secondary"
+                    color = noctalia.getConfig("sort_column_color") or "on_secondary"
+                end
                 fontWeight = "bold"
             end
             table.insert(process_children, ui.column({
@@ -522,9 +527,24 @@ local function render_processes(gpu_idx)
                 })
             }))
         end
+
         table.insert(children, ui.row({
             key = "proc-row-" .. process.pid,
             gap = 8,
+            padding = 1,
+            radius = 2,
+            fill = is_hovered and "hover" or "surface_variant",
+            onHover = function(state, key)
+                local old_state = hover_row_key
+                if state == "true" then
+                    hover_row_key = "proc-row-" .. process.pid
+                else
+                    hover_row_key = nil
+                end
+                if old_state ~= hover_row_key then
+                    render()
+                end
+            end
         }, process_children))
     end
 
@@ -538,7 +558,6 @@ local function render_processes(gpu_idx)
         render_processes_header(gpu_idx),
         ui.scroll({ 
             flexGrow = 1, 
-            gap = 1
         }, children)
     })
 end
