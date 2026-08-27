@@ -495,6 +495,7 @@ local function render_processes_header(gpu_idx)
 end
 
 local hover_row_key = nil
+local expanded_pid = nil
 
 -- Render the list of processes for the selected GPU, with sortable columns.
 local function render_processes(gpu_idx)
@@ -506,8 +507,8 @@ local function render_processes(gpu_idx)
         local process_children = {}
         local is_hovered = hover_row_key == "proc-row-" .. process.pid
         for _, column in ipairs(get_processes_data(gpu_idx)) do
-            local fill = is_hovered and default_hover_fill or "surface"
-            local color = is_hovered and default_hover_color or "on_surface"
+            local fill = (is_hovered or (expanded_pid ~= nil and expanded_pid == process.pid)) and default_hover_fill or "surface"
+            local color = (is_hovered or (expanded_pid ~= nil and expanded_pid == process.pid)) and default_hover_color or "on_surface"
             local fontWeight = "medium"
             if order_by == column.data_key or order_by == "-" .. column.data_key then
                 if not is_hovered then
@@ -532,26 +533,119 @@ local function render_processes(gpu_idx)
             }))
         end
 
-        table.insert(children, ui.row({
-            key = "proc-row-" .. process.pid,
-            gap = 8,
-            padding = 1,
-            radius = 2,
-            border = "outline",
-            borderWidth = is_hovered and 1 or 0,
-            fill = is_hovered and "surface_variant" or "surface",
-            onHover = function(state, key)
-                local old_state = hover_row_key
-                if state == "true" then
-                    hover_row_key = "proc-row-" .. process.pid
-                else
-                    hover_row_key = nil
+        if expanded_pid ~= nil and expanded_pid == process.pid then
+            table.insert(children, ui.column({
+                radius = 2,
+                border = "outline",
+                borderWidth = 1,
+                padding = 1,
+                fill = default_hover_fill
+            }, {
+                ui.row({
+                    key = "proc-row-" .. process.pid,
+                    gap = 8,
+                    onClick = function()
+                        expanded_pid = nil
+                        render()
+                    end
+                }, process_children),
+                ui.row({
+                    key = "proc-row-expanded-" .. process.pid,
+                    gap = 8,
+                    padding = 4,
+                    radius = 2,
+                    fill = default_hover_fill,
+                }, {
+                    ui.button({
+                        text = noctalia.tr("nvtop.process_buttons.kill.label"),
+                        tooltip = noctalia.tr("nvtop.process_buttons.kill.tip"),
+                        glyph = "square-x",
+                        variant = "destructive",
+                        controlSize = "sm",
+                        onClick = function()
+                            noctalia.runAsync({"kill", tostring(process.pid)})
+                            expanded_pid = nil
+                            render()
+                        end
+                    }),
+                    ui.button({
+                        text = noctalia.tr("nvtop.process_buttons.force_kill.label"),
+                        tooltip = noctalia.tr("nvtop.process_buttons.force_kill.tip"),
+                        glyph = "skull",
+                        variant = "destructive",
+                        controlSize = "sm",
+                        onClick = function()
+                            noctalia.runAsync({"kill", "-9", tostring(process.pid)})
+                            expanded_pid = nil
+                            render()
+                        end
+                    }),
+                    ui.spacer({flexGrow = 1}),
+                    ui.button({
+                        text = noctalia.tr("nvtop.process_buttons.copy_pid.label"),
+                        tooltip = noctalia.tr("nvtop.process_buttons.copy_pid.tip"),
+                        glyph = "clipboard",
+                        variant = "default",
+                        controlSize = "sm",
+                        onClick = function()
+                            noctalia.copyToClipboard(process.pid, "text/plain")
+                            expanded_pid = nil
+                            render()
+                        end
+                    }),
+                    ui.button({
+                        text = noctalia.tr("nvtop.process_buttons.copy_cmdline.label"),
+                        tooltip = noctalia.tr("nvtop.process_buttons.copy_cmdline.tip"),
+                        glyph = "clipboard",
+                        variant = "default",
+                        controlSize = "sm",
+                        onClick = function()
+                            noctalia.copyToClipboard(process.cmdline, "text/plain")
+                            expanded_pid = nil
+                            render()
+                        end
+                    }),
+                    ui.button({
+                        text = noctalia.tr("nvtop.process_buttons.cancel.label"),
+                        tooltip = noctalia.tr("nvtop.process_buttons.cancel.tip"),
+                        glyph = "cancel",
+                        variant = "primary",
+                        controlSize = "sm",
+                        onClick = function()
+                            expanded_pid = nil
+                            render()
+                        end
+                    })
+                })
+            }))
+        else
+            table.insert(children, ui.row({
+                key = "proc-row-" .. process.pid,
+                gap = 8,
+                padding = 1,
+                radius = 2,
+                border = "outline",
+                borderWidth = (is_hovered or (expanded_pid ~= nil and expanded_pid == process.pid)) and 1 or 0,
+                fill = (is_hovered or (expanded_pid ~= nil and expanded_pid == process.pid)) and default_hover_fill or "surface",
+                onHover = function(state, key)
+                    local old_state = hover_row_key
+                    if state == "true" then
+                        hover_row_key = "proc-row-" .. process.pid
+                    else
+                        hover_row_key = nil
+                    end
+                    if old_state ~= hover_row_key then
+                        render()
+                    end
+                end,
+                onClick = function()
+                    if expanded_pid == nil or expanded_pid ~= process.pid then
+                        expanded_pid = process.pid
+                        render()
+                    end
                 end
-                if old_state ~= hover_row_key then
-                    render()
-                end
-            end
-        }, process_children))
+            }, process_children))
+        end
     end
 
     return ui.column({

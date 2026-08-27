@@ -61,6 +61,28 @@
         "label": "Command Line",
         "tip": "Process Command Line"
       }
+    },
+    "process_buttons": {
+      "copy_pid": {
+        "label": "Copy PID",
+        "tip": "Copy the process ID to the clipboard"
+      },
+      "copy_cmdline": {
+        "label": "Copy Command Line",
+        "tip": "Copy the process command line to the clipboard"
+      },
+      "cancel": {
+        "label": "Cancel",
+        "tip": "Cancel the expanded process view"
+      },
+      "kill": {
+        "label": "Kill",
+        "tip": "Kill the expanded process (SIGINT)"
+      },
+      "force_kill": {
+        "label": "Terminate",
+        "tip": "Force kill the expanded process (SIGKILL)"
+      }
     }
   }
 }
