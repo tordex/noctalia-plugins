@@ -11,6 +11,14 @@
     "sort_column_color": {
       "description": "Select the text color for the sort column",
       "label": "Sort column text color"
+    },
+    "process_hover_background": {
+      "description": "Select the background color for hovered process rows",
+      "label": "Process hover background"
+    },
+    "process_hover_color": {
+      "description": "Select the text color for hovered process rows",
+      "label": "Process hover text color"
     }
   },
   "nvtop": {

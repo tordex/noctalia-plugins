@@ -489,6 +489,8 @@ local function render_processes_header(gpu_idx)
     end
     return ui.row({
         gap = 8,
+        fill = "surface_variant",
+        radius = 8,
     }, children)
 end
 
@@ -498,17 +500,19 @@ local hover_row_key = nil
 local function render_processes(gpu_idx)
     local children = {}
     local order_by = get_order_by(g_order_by_context, gpu_idx)
+    local default_hover_fill = noctalia.getConfig("process_hover_background") or "surface_variant"
+    local default_hover_color = noctalia.getConfig("process_hover_color") or "on_surface_variant"
     for _, process in ipairs(nvtop_data[gpu_idx].processes) do
         local process_children = {}
         local is_hovered = hover_row_key == "proc-row-" .. process.pid
         for _, column in ipairs(get_processes_data(gpu_idx)) do
-            local fill = is_hovered and "hover" or "surface_variant"
-            local color = is_hovered and "on_hover" or "on_surface"
+            local fill = is_hovered and default_hover_fill or "surface"
+            local color = is_hovered and default_hover_color or "on_surface"
             local fontWeight = "medium"
             if order_by == column.data_key or order_by == "-" .. column.data_key then
                 if not is_hovered then
-                    fill = noctalia.getConfig("sort_column_background") or "secondary"
-                    color = noctalia.getConfig("sort_column_color") or "on_secondary"
+                    fill = noctalia.getConfig("sort_column_background") or "surface_variant"
+                    color = noctalia.getConfig("sort_column_color") or "on_surface_variant"
                 end
                 fontWeight = "bold"
             end
@@ -533,7 +537,9 @@ local function render_processes(gpu_idx)
             gap = 8,
             padding = 1,
             radius = 2,
-            fill = is_hovered and "hover" or "surface_variant",
+            border = "outline",
+            borderWidth = is_hovered and 1 or 0,
+            fill = is_hovered and "surface_variant" or "surface",
             onHover = function(state, key)
                 local old_state = hover_row_key
                 if state == "true" then
@@ -554,10 +560,15 @@ local function render_processes(gpu_idx)
         borderWidth = 1,
         flexGrow = 1,
         radius = 12,
+        padding = 4
     }, {
         render_processes_header(gpu_idx),
         ui.scroll({ 
             flexGrow = 1, 
+            border = "outline",
+            borderWidth = 1,
+            fill = "surface",
+            radius = 10,
         }, children)
     })
 end

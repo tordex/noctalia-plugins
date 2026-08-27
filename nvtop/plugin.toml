@@ -23,14 +23,28 @@ key = "sort_column_background"
 type = "color"
 label_key = "settings.sort_column_background.label"
 description_key = "settings.sort_column_background.description"
-default = "secondary"
+default = "surface_variant"
 
 [[setting]]
 key = "sort_column_color"
 type = "color"
 label_key = "settings.sort_column_color.label"
 description_key = "settings.sort_column_color.description"
-default = "on_secondary"
+default = "on_surface_variant"
+
+[[setting]]
+key = "process_hover_background"
+type = "color"
+label_key = "settings.process_hover_background.label"
+description_key = "settings.process_hover_background.description"
+default = "surface_variant"
+
+[[setting]]
+key = "process_hover_color"
+type = "color"
+label_key = "settings.process_hover_color.label"
+description_key = "settings.process_hover_color.description"
+default = "on_surface_variant"
 
 [[panel]]
 id = "panel"
