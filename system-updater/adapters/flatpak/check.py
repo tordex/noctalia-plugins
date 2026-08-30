@@ -46,7 +46,7 @@ def parse_flatpak_list_output(lines):
 
 def get_real_flatpak_updates():
     # Run flatpak list --columns 'application,name,description,version'
-    list_lines = run_process(["flatpak", "list", "--columns", "application,name,description,version"])
+    list_lines = run_process(["flatpak", "list", "--app", "--columns", "application,name,description,version"])
     # Parse the output of flatpak list to create a mapping of app_id to its details
     apps = parse_flatpak_list_output(list_lines)
 
