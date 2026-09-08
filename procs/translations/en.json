@@ -1,6 +1,8 @@
 {
   "procs": {
     "applications_header": "Applications",
+    "copied_to_clipboard": "Copied to clipboard",
+    "copy_failed": "Copy failed",
     "nodata": "No data available",
     "process": {
       "cpu": {

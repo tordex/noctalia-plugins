@@ -66,7 +66,7 @@ def icon_path(icon_name, size=24):
         path = get_icon_path(generic_icon_name, size)
         if path:
             return path
-    
+
     # Fallback to a default icon if the specific icon is not found
     default_icon_name = "application-x-executable"  # You can change this to any default icon you prefer
     return get_icon_path(default_icon_name, size)  # Return None if no icon is found
@@ -296,7 +296,7 @@ def get_distro_info():
         pretty_name = distro_name
         if distro_version is not None:
             pretty_name += f" {distro_version}"
-    
+
     return {
         "distro_name": distro_name,
         "distro_version": distro_version,
@@ -401,7 +401,7 @@ def fetch_processes(interval: float):
         if not pid.isdigit():
             continue
         pid = int(pid)
-        
+
         if pid == self_pid:
             continue
 
@@ -413,7 +413,7 @@ def fetch_processes(interval: float):
         cpu_ticks = proc.get_cpu_ticks(pid)
         if cpu_ticks["system_ticks"] is None or cpu_ticks["ticks"] is None:
             continue
-        
+
         io_bytes = proc.get_io_bytes(pid)
         if io_bytes["read_b"] is None or io_bytes["write_b"] is None:
             continue
@@ -531,7 +531,7 @@ def fetch_applications(processes: dict):
 
     for _, app_data in ret.items():
         app_data["processes"] = list(app_data["processes"].values())
-    
+
     return ret
 
 def update_apps_metrics(apps: dict):
@@ -607,7 +607,7 @@ def main():
         processes = []
         time.sleep(interval)
 
-if __name__ == '__main__': 
+if __name__ == '__main__':
     #sys.stdout = Unbuffered(sys.stdout)
     #sys.stderr = Unbuffered(sys.stderr)
 

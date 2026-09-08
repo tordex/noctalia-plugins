@@ -10,51 +10,30 @@ local g_order_by_context = "mem"
 -- Forward declaration of the render function to allow it to be called from other functions.
 local render
 
--- Render a single row of GPU info with a label, value, and glyph.
-local function gpu_info_row(label, value, glyph)
-    return ui.row({
-        gap = 8,
-    },{
-        ui.glyph({
-            name = glyph,
-            color = "on_surface",
-        }),
-        ui.label({
-            text = label .. ":",
-            color = "on_surface",
-        })
-    }), ui.label({
-            text = value,
-            flexGrow = 1,
-            fontWeight = "bold",
-            color = "on_surface",
-        })
-end
-
 -- Format memory size in bytes to a human-readable string in M or G.
 local function format_memory_size(size_in_bytes, show_B)
     show_B = show_B or false
     if size_in_bytes == nil then
         return "0" .. (show_B and " B" or "")
     end
-    
+
     local size_in_units = size_in_bytes
     if size_in_units < 1024 then
         return tostring(size_in_bytes) .. (show_B and " B" or "")
     end
-    
+
     size_in_units = size_in_units / 1024
     if size_in_units < 1024 then
-        return string.format("%.2f K", size_in_units)
+        return string.format("%.1f K", size_in_units)
     end
 
     size_in_units = size_in_units / 1024
     if size_in_units < 1024 then
-        return string.format("%.2f M", size_in_units)
+        return string.format("%.1f M", size_in_units)
     end
 
     size_in_units = size_in_units / 1024
-    return string.format("%.2f G", size_in_units)
+    return string.format("%.1f G", size_in_units)
 end
 
 -- Render a message when there is no data available.
@@ -82,20 +61,50 @@ local function render_no_data_message()
     return false
 end
 
+local info_row_hover_key = ""
+
 local function render_system_info_row(glyph, text)
+    local row_key = "info-row-" .. glyph
+    local border_width = 0
+    if row_key == info_row_hover_key then
+        border_width = 1
+    end
     return ui.row({
+        key = row_key,
         gap = 8,
+        radius = 16,
+        paddingH = 8,
+        border = "on_surface_variant",
+        borderWidth = border_width,
+        onClick = function()
+            if noctalia.copyToClipboard(text, "text/plain") then
+                noctalia.notify(noctalia.tr("procs.copied_to_clipboard"), text)
+            else
+                noctalia.notify(noctalia.tr("procs.copy_failed"), text)
+            end
+        end,
+        onHover = function(state, key)
+            local old_state = info_row_hover_key
+            if state == "true" then
+                info_row_hover_key = key
+            else
+                info_row_hover_key = ""
+            end
+            if old_state ~= info_row_hover_key then
+                render()
+            end
+        end,
     },{
         ui.glyph({
+            key = row_key .. "-glyph",
             name = glyph,
             color = "on_surface_variant",
-            size = 12,
         }),
         ui.label({
+            key = row_key .. "-label",
             text = text,
             color = "on_surface_variant",
             maxLines = 1,
-            fontSize = 12,
         }),
     })
 end
@@ -132,7 +141,8 @@ local function render_system_info()
     end
 
     return ui.column({
-        gap = 4,
+        key = "system-info-column",
+        gap = 2,
         flexGrow = 1,
     }, children)
 end
@@ -173,6 +183,7 @@ local function render_info()
     end
 
     return ui.row({
+        key = "info-row",
         gap = 8,
         padding = 8,
         radius = 12,
@@ -250,24 +261,19 @@ local processes_data = {
 }
 
 local processes_data_transfer = {}
+
 for _, column in ipairs(processes_data) do
     processes_data_transfer[column.data_key] = column.sort_value
 end
 
-local function get_processes_data()
-    return processes_data
-end
-
-local function get_processes_data_transfer()
-    return processes_data_transfer
-end
 
 local function get_order_by(context, is_app)
     local clear_context = context
     if context:sub(1, 1) == "-" then
         clear_context = context:sub(2)
     end
-    for _, column in ipairs(get_processes_data()) do
+    for col_idx = 1, #processes_data do
+        local column = processes_data[col_idx]
         if column.data_key == clear_context then
             local ret = column.data_key
             if context:sub(1, 1) == "-" then
@@ -331,13 +337,11 @@ local function sort_processes(processes, is_app)
         reverse = false
     end
 
-    local data = get_processes_data_transfer()
-
     table.sort(processes, function(a, b)
-        local a_value = data[order_by](a[order_by])
-        local b_value = data[order_by](b[order_by])
-        local a_value2 = data["name"](a["name"])
-        local b_value2 = data["name"](b["name"])
+        local a_value = processes_data_transfer[order_by](a[order_by])
+        local b_value = processes_data_transfer[order_by](b[order_by])
+        local a_value2 = processes_data_transfer["name"](a["name"])
+        local b_value2 = processes_data_transfer["name"](b["name"])
 
         if a_value == nil and b_value == nil then
             return false
@@ -367,7 +371,8 @@ end
 local function render_processes_header()
     local children = {}
     local order_by = get_order_by(g_order_by_context, false)
-    for _, column in ipairs(get_processes_data()) do
+    for col_idx = 1, #processes_data do
+        local column = processes_data[col_idx]
         local sort_indicator = ""
         if order_by == column.data_key then
             sort_indicator = "▼ "
@@ -375,6 +380,7 @@ local function render_processes_header()
             sort_indicator = "▲ "
         end
         table.insert(children, ui.button({
+            key = "processes-header-" .. column.data_key,
             text = sort_indicator .. column.label,
             tooltip = column.tip,
             flexGrow = column.flexGrow,
@@ -394,6 +400,7 @@ local function render_processes_header()
         }))
     end
     return ui.row({
+        key = "processes-header-row",
         gap = 8,
         fill = "surface_variant",
         radius = 8,
@@ -477,16 +484,20 @@ end
 local function render_processes(processes, is_app, level)
     level = level or 0
     local key_prefix = is_app and "app-" or "all-"
-    local children = {}
+    local children = table.create(#processes)
+    local children_N = 0
     local order_by = get_order_by(g_order_by_context, is_app)
     local default_hover_fill = noctalia.getConfig("process_hover_background") or "surface_variant"
     local default_hover_color = noctalia.getConfig("process_hover_color") or "on_surface_variant"
-    for _, process in ipairs(processes) do
+    for row_idx = 1, #processes do
+        children_N = children_N + 1
+        local process = processes[row_idx]
         local process_children = {}
         local process_key = key_prefix .. "proc-row-" .. (process.pid or process.name or "")
         local is_hovered = hover_row_key == process_key
-        for col_idx, column in ipairs(get_processes_data()) do
-            local fill = (is_hovered or (expanded_key ~= nil and expanded_key == process_key)) and default_hover_fill or "surface"
+        for col_idx = 1, #processes_data do
+            local column = processes_data[col_idx]
+            local fill = (is_hovered or (expanded_key ~= nil and expanded_key == process_key)) and default_hover_fill or "surface/0.0"
             local color = (is_hovered or (expanded_key ~= nil and expanded_key == process_key)) and default_hover_color or "on_surface"
             local fontWeight = "medium"
             if order_by == column.data_key or order_by == "-" .. column.data_key then
@@ -497,47 +508,58 @@ local function render_processes(processes, is_app, level)
                 fontWeight = "bold"
             end
 
-            local label_box = {}
-
             if col_idx == 1 then
-                table.insert(label_box, 
-                    ui.box({
-                        opacity = 0.0,
-                        width = 16 * level * (col_idx == 1 and 1 or 0),
-                    }))
-                table.insert(label_box, 
-                    ui.image({
-                        path = process.icon,
-                        width = 16,
-                        height = 16,
-                    }))
+                table.insert(process_children, ui.column({
+                    flexGrow = column.flexGrow,
+                    paddingH = 8,
+                    fill = fill,
+                    radius = 16,
+                }, {
+                    ui.row({
+                        flexGrow = 1,
+                        gap = 4,
+                    }, {
+                        ui.box({
+                            opacity = 0.0,
+                            width = 16 * level * (col_idx == 1 and 1 or 0),
+                        }),
+                        ui.image({
+                            path = process.icon,
+                            width = 16,
+                            height = 16,
+                        }),
+                        ui.label({
+                            text = column.process_value(process[column.data_key]),
+                            maxLines = 1,
+                            flexGrow = 1,
+                            color = process[column.data_key] and color or color .. "/0.4",
+                            textAlign = column.textAlign,
+                            fontWeight = fontWeight,
+                        })
+                    })
+                }))
+            else
+                table.insert(process_children, ui.column({
+                    flexGrow = column.flexGrow,
+                    paddingH = 8,
+                    fill = fill,
+                    radius = 16,
+                }, {
+                    ui.label({
+                        text = column.process_value(process[column.data_key]),
+                        maxLines = 1,
+                        flexGrow = 1,
+                        color = process[column.data_key] and color or color .. "/0.4",
+                        textAlign = column.textAlign,
+                        fontWeight = fontWeight,
+                    })
+                }))
             end
-            table.insert(label_box, 
-                ui.label({
-                    text = column.process_value(process[column.data_key]),
-                    maxLines = 1,
-                    flexGrow = 1,
-                    color = process[column.data_key] and color or color .. "/0.4",
-                    textAlign = column.textAlign,
-                    fontWeight = fontWeight,
-                })
-            )
-
-            table.insert(process_children, ui.column({
-                flexGrow = column.flexGrow,
-                paddingH = 2,
-                fill = fill,
-            }, {
-                ui.row({
-                    flexGrow = 1,
-                    gap = 4,
-                }, label_box)
-            }))
         end
 
         if expanded_key ~= nil and expanded_key == process_key then
-            table.insert(children, ui.column({
-                radius = 2,
+            children[children_N] = ui.column({
+                radius = 8,
                 border = "outline",
                 borderWidth = 1,
                 padding = 1,
@@ -626,13 +648,13 @@ local function render_processes(processes, is_app, level)
                         end
                     })
                 })
-            }))
+            })
         else
-            table.insert(children, ui.row({
+            children[children_N] = ui.row({
                 key = process_key,
                 gap = 8,
                 padding = 1,
-                radius = 2,
+                radius = 16,
                 border = "outline",
                 borderWidth = (is_hovered or (expanded_key ~= nil and expanded_key == process_key)) and 1 or 0,
                 fill = (is_hovered or (expanded_key ~= nil and expanded_key == process_key)) and default_hover_fill or "surface",
@@ -656,11 +678,12 @@ local function render_processes(processes, is_app, level)
                         render()
                     end
                 end
-            }, process_children))
+            }, process_children)
         end
         if is_app and is_app_expanded(process.app_id) then
             local app_processes_children = render_processes(process.processes, false, level + 1)
-            table.move(app_processes_children, 1, #app_processes_children, #children + 1, children)
+            table.move(app_processes_children, 1, #app_processes_children, children_N + 1, children)
+            children_N = children_N + #app_processes_children
         end
 
     end
@@ -729,8 +752,9 @@ render = function()
     local children = render_header_block()
 
     table.insert(children, render_info())
-    table.insert(children, 
+    table.insert(children,
         ui.column({
+                key = "processes-column",
                 fill = "surface_variant",
                 border = "outline",
                 borderWidth = 1,
@@ -739,17 +763,20 @@ render = function()
                 padding = 4
             }, {
                 render_processes_header(),
-                ui.scroll({ 
-                    flexGrow = 1, 
+                ui.scroll({
+                    key = "processes-scroll",
+                    flexGrow = 1,
                     border = "outline",
                     borderWidth = 1,
                     fill = "surface",
                     radius = 10,
+                    gap = 4,
                 }, render_processes_block())
-            })    
+            })
     )
 
     panel.render(ui.column({
+        key = "main-column",
         flexGrow = 1,
         gap = 6,
     }, children))

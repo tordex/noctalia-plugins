@@ -49,7 +49,7 @@ default = "on_surface_variant"
 [[panel]]
 id = "panel"
 entry = "panel.luau"
-width = 750
+width = 800
 height = 600
 placement = "attached"
 open_near_click = true
