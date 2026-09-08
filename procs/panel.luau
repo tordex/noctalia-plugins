@@ -7,6 +7,12 @@ local procs_pid = -1
 
 local g_order_by_context = "mem"
 
+local show_view_options = false
+
+local view_show_apps = noctalia.getConfig("show_apps")
+local view_show_all_processes = noctalia.getConfig("show_all_processes")
+local view_group_processes = noctalia.getConfig("group_processes")
+
 -- Forward declaration of the render function to allow it to be called from other functions.
 local render
 
@@ -74,6 +80,7 @@ local function render_system_info_row(glyph, text)
         gap = 8,
         radius = 16,
         paddingH = 8,
+        paddingV = 2,
         border = "on_surface_variant",
         borderWidth = border_width,
         onClick = function()
@@ -99,12 +106,14 @@ local function render_system_info_row(glyph, text)
             key = row_key .. "-glyph",
             name = glyph,
             color = "on_surface_variant",
+            size = 12,
         }),
         ui.label({
             key = row_key .. "-label",
             text = text,
             color = "on_surface_variant",
             maxLines = 1,
+            fontSize = 12,
         }),
     })
 end
@@ -142,9 +151,79 @@ local function render_system_info()
 
     return ui.column({
         key = "system-info-column",
-        gap = 2,
         flexGrow = 1,
     }, children)
+end
+
+local function render_view_options()
+
+    return ui.column({
+        key = "view-options-column",
+        gap = 8,
+        flexGrow = 1,
+    },{
+        ui.row({
+            gap = 8,
+            radius = 16,
+            paddingH = 8,
+        },{
+            ui.label({
+                text = noctalia.tr("settings.show_apps.label"),
+                color = "on_surface_variant",
+                maxLines = 1,
+            }),
+            ui.spacer({ flexGrow = 1 }),
+            ui.toggle({
+                key = "toggle-show-apps",
+                checked = view_show_apps,
+                onChange = function(new_value)
+                    view_show_apps = new_value == "true"
+                    render()
+                end
+            })
+        }),
+        ui.row({
+            gap = 8,
+            radius = 16,
+            paddingH = 8,
+        },{
+            ui.label({
+                text = noctalia.tr("settings.show_all_processes.label"),
+                color = "on_surface_variant",
+                maxLines = 1,
+            }),
+            ui.spacer({ flexGrow = 1 }),
+            ui.toggle({
+                key = "toggle-show-all-processes",
+                checked = view_show_all_processes,
+                onChange = function(new_value)
+                    view_show_all_processes = new_value == "true"
+                    render()
+                end
+            })
+        }),
+        ui.row({
+            gap = 8,
+            radius = 16,
+            paddingH = 8,
+        },{
+            ui.label({
+                text = noctalia.tr("settings.group_processes.label"),
+                color = "on_surface_variant",
+                maxLines = 1,
+            }),
+            ui.spacer({ flexGrow = 1 }),
+            ui.toggle({
+                key = "toggle-group-processes",
+                checked = view_group_processes,
+                onChange = function(new_value)
+                    view_group_processes = new_value == "true"
+                    render()
+                end
+            })
+        }),
+    })
+
 end
 
 -- Render the system information.
@@ -160,13 +239,18 @@ local function render_info()
         }))
     end
 
-    table.insert(children, render_system_info())
+    if show_view_options then
+        table.insert(children, render_view_options())
+    else
+        table.insert(children, render_system_info())
+    end
 
     if g_data ~= nil and g_data["system_stats"] ~= nil then
         local system_stats = g_data["system_stats"]
+        local ms = tostring(noctalia.nowMs())
         if system_stats["cpu_graph_path"] ~= nil and noctalia.fileExists(system_stats["cpu_graph_path"]) then
             table.insert(children, ui.image({
-                key = "img-cpu-" .. tonumber(noctalia.nowMs()),
+                key = "img-cpu-" .. ms,
                 path = system_stats["cpu_graph_path"],
                 width = 110,
                 height = 110,
@@ -174,7 +258,7 @@ local function render_info()
         end
         if system_stats["mem_graph_path"] ~= nil and noctalia.fileExists(system_stats["mem_graph_path"]) then
             table.insert(children, ui.image({
-                key = "img-mem-" .. tonumber(noctalia.nowMs()),
+                key = "img-mem-" .. ms,
                 path = system_stats["mem_graph_path"],
                 width = 110,
                 height = 110,
@@ -691,6 +775,7 @@ local function render_processes(processes, is_app, level)
     return children
 end
 
+
 local function render_header_block()
     return {
         ui.row({ key = "header", gap = 8, align = "center" }, {
@@ -702,6 +787,17 @@ local function render_header_block()
                 color = "on_surface",
             }),
             ui.spacer({ key = "gap", flexGrow = 1 }),
+            ui.button({
+                key = "options",
+                glyph = "adjustments-horizontal",
+                variant = "ghost",
+                tooltip = noctalia.tr("tip_options"),
+                selected = show_view_options,
+                onClick = function()
+                    show_view_options = not show_view_options
+                    render()
+                end,
+            }),
             ui.button({
                 key = "settings",
                 glyph = "settings",
@@ -728,16 +824,28 @@ local function render_processes_block()
     local rows
     local children = {}
 
-    table.insert(children, render_processes_type_header(true))
-    if apps_expanded then
-        rows = render_processes(g_data["applications"], true, 1)
-        table.move(rows, 1, #rows, #children + 1, children)
+    if view_show_apps then
+        local level = 0
+        if view_show_all_processes then
+            table.insert(children, render_processes_type_header(true))
+            level = 1
+        end
+        if apps_expanded and view_show_apps or (not view_show_all_processes) then
+            rows = render_processes(g_data["applications"], true, level)
+            table.move(rows, 1, #rows, #children + 1, children)
+        end
     end
 
-    table.insert(children, render_processes_type_header(false))
-    if all_processes_expanded then
-        rows = render_processes(g_data["processes"], false, 1)
-        table.move(rows, 1, #rows, #children + 1, children)
+    if view_show_all_processes then
+        local level = 0
+        if view_show_apps then
+            level = 1
+            table.insert(children, render_processes_type_header(false))
+        end
+        if all_processes_expanded and view_show_all_processes or (not view_show_apps) then
+            rows = render_processes(g_data["processes"], false, level)
+            table.move(rows, 1, #rows, #children + 1, children)
+        end
     end
 
     return children
@@ -788,7 +896,8 @@ local function starts_with(str: string, prefix: string): boolean
 end
 
 local function run_processes_stream()
-    local cmd = "python " .. noctalia.pluginDir() .. "/procs.py " .. tostring(noctalia.getConfig("delay"))
+    local plugin_dir = noctalia.pluginDir()
+    local cmd = "python " .. plugin_dir .. "/procs.py " .. tostring(noctalia.getConfig("delay"))
     noctalia.runStream(cmd,
         function(line)
             if line:find("tordex/procs:pid:") then

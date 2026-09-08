@@ -46,6 +46,27 @@ label_key = "settings.process_hover_color.label"
 description_key = "settings.process_hover_color.description"
 default = "on_surface_variant"
 
+[[setting]]
+key = "show_apps"
+type = "bool"
+label_key = "settings.show_apps.label"
+description_key = "settings.show_apps.description"
+default = true
+
+[[setting]]
+key = "show_all_processes"
+type = "bool"
+label_key = "settings.show_all_processes.label"
+description_key = "settings.show_all_processes.description"
+default = true
+
+[[setting]]
+key = "group_processes"
+type = "bool"
+label_key = "settings.group_processes.label"
+description_key = "settings.group_processes.description"
+default = false
+
 [[panel]]
 id = "panel"
 entry = "panel.luau"
