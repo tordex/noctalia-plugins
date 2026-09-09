@@ -6,7 +6,7 @@ author = "tordex"
 license = "MIT"
 dependencies = ["python", "niri"]
 tags = ["panel", "service", "system"]
-icon = "package"
+icon = "device-desktop-analytics"
 description = "Monitor processes CPU, Memory, Disk Read and Disk Write metrics"
 
 [[setting]]

@@ -3,13 +3,29 @@ from PIL import Image, ImageDraw, ImageFont
 
 # ----------------- Параметры отрисовки -----------------
 WIDTH, HEIGHT = 216, 216
-BG_COLOR = (26, 28, 38, 0)
 
 BLUE_ACCENT = (120, 180, 255)
 ORANGE_ACCENT = (255, 185, 120)
 TRACK_COLOR = (42, 45, 60, 255)
-TEXT_WHITE = (235, 240, 250)
+TEXT_MAIN = (235, 240, 250)
 TEXT_MUTED = (140, 150, 170)
+
+SKINS = {
+    "dark": {
+        "track": (42, 45, 60, 255),
+        "text": (235, 240, 250),
+        "label": (235, 240, 250),
+        "subtext": (140, 150, 170),
+        "ring": (120, 180, 255),
+    },
+    "light": {
+        "track": (49, 49, 49, 255),
+        "text": (31, 31, 31),
+        "label": (131, 50, 244),
+        "subtext": (60, 60, 60),
+        "ring": (53, 132, 228),
+    }
+}
 
 SCALE = 3
 w_hi, h_hi = WIDTH * SCALE, HEIGHT * SCALE
@@ -47,7 +63,7 @@ def draw_capsule_arc(draw, center, radius, thickness, start_angle, end_angle, fi
         )
 
 
-def draw_gauge(base_img, center, percent, ring_color, val_text, label_text, sub_text, label_color):
+def draw_gauge(base_img, center, percent, val_text, label_text, sub_text, skin):
     radius = 100 * SCALE
     thickness = 16 * SCALE
     cx, cy = center
@@ -58,7 +74,7 @@ def draw_gauge(base_img, center, percent, ring_color, val_text, label_text, sub_
     draw = ImageDraw.Draw(base_img)
     draw.ellipse(
         [cx - radius, cy - radius, cx + radius, cy + radius],
-        outline=TRACK_COLOR,
+        outline=skin["track"],
         width=int(thickness)
     )
 
@@ -69,7 +85,7 @@ def draw_gauge(base_img, center, percent, ring_color, val_text, label_text, sub_
 
         halo_thickness = thickness + (14 * SCALE)
         halo_radius = radius + (7 * SCALE)
-        halo_color = ring_color + (70,)
+        halo_color = skin["ring"] + (70,)
 
         draw_capsule_arc(
             halo_draw, center, halo_radius, halo_thickness,
@@ -81,29 +97,31 @@ def draw_gauge(base_img, center, percent, ring_color, val_text, label_text, sub_
 
         draw_capsule_arc(
             draw, center, radius, thickness,
-            start_deg, end_deg, ring_color + (255,)
+            start_deg, end_deg, skin["ring"] + (255,)
         )
 
-    draw.text((cx, cy - 28 * SCALE), val_text, font=font_value, fill=TEXT_WHITE, anchor="mm")
-    draw.text((cx, cy + 12 * SCALE), label_text, font=font_label, fill=label_color, anchor="mm")
-    draw.text((cx, cy + 48 * SCALE), sub_text, font=font_sub, fill=TEXT_MUTED, anchor="mm")
+    draw.text((cx, cy - 28 * SCALE), val_text, font=font_value, fill=skin["text"], anchor="mm")
+    draw.text((cx, cy + 12 * SCALE), label_text, font=font_label, fill=skin["label"], anchor="mm")
+    draw.text((cx, cy + 48 * SCALE), sub_text, font=font_sub, fill=skin["subtext"], anchor="mm")
 
     return base_img
 
 
-def draw_graph(percent, val_text, label_text, sub_text, filename):
+def draw_graph(percent, val_text, label_text, sub_text, skin, filename):
     img = Image.new("RGBA", (w_hi, h_hi), (0, 0, 0, 0))
+
+    if skin not in SKINS:
+        skin = "dark"
 
     # Левый график (CPU)
     img = draw_gauge(
         img,
         center=(WIDTH // 2 * SCALE, HEIGHT // 2 * SCALE),
         percent=percent,
-        ring_color=BLUE_ACCENT,
         val_text=val_text,
         label_text=label_text,
         sub_text=sub_text,
-        label_color=BLUE_ACCENT
+        skin=SKINS[skin]
     )
 
     final_img = img.resize((110, 110), Image.Resampling.LANCZOS)

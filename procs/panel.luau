@@ -897,7 +897,13 @@ end
 
 local function run_processes_stream()
     local plugin_dir = noctalia.pluginDir()
-    local cmd = "python " .. plugin_dir .. "/procs.py " .. tostring(noctalia.getConfig("delay"))
+    local theme
+    if noctalia.isDarkMode() then
+        theme = "dark"
+    else
+        theme = "light"
+    end
+    local cmd = "python " .. plugin_dir .. "/procs.py " .. tostring(noctalia.getConfig("delay")) .. " " .. theme
     noctalia.runStream(cmd,
         function(line)
             if line:find("tordex/procs:pid:") then

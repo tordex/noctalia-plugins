@@ -553,7 +553,8 @@ def update_apps_metrics(apps: dict):
         app_data["io_write"] = total_write_b_sec
 
 def main():
-    interval = 1.0
+    interval = (int)(sys.argv[1])
+    skin = sys.argv[2] if len(sys.argv) > 2 else "dark"
 
     while True:
         processes = fetch_processes(interval)
@@ -577,6 +578,7 @@ def main():
             val_text=f"{int(output_data['system_stats']['cpu_percent'])}%",
             label_text="CPU",
             sub_text=f"{cpu_temp}",
+            skin=skin,
             filename=cpu_graph_path)
         if not ret:
             cpu_graph_path = None
@@ -586,6 +588,7 @@ def main():
             val_text=f"{round(output_data['system_stats']['mem_used'] / (1024 * 1024 * 1024), 1)}G",
             label_text="Memory",
             sub_text=f"+{round(output_data['system_stats']['mem_free'] / (1024 * 1024 * 1024), 1)}G",
+            skin=skin,
             filename=mem_graph_path
         )
         if not ret:
@@ -608,8 +611,5 @@ def main():
         time.sleep(interval)
 
 if __name__ == '__main__':
-    #sys.stdout = Unbuffered(sys.stdout)
-    #sys.stderr = Unbuffered(sys.stderr)
-
     print(f"tordex/procs:pid:{self_pid}")
     main()
