@@ -15,6 +15,14 @@ local view_group_processes = noctalia.getConfig("group_processes")
 
 -- Forward declaration of the render function to allow it to be called from other functions.
 local render
+local data_load_ms = "none"
+local processes_cache = nil
+local process_view_data = nil
+local process_view_pid = nil
+
+local function reset_processes_cache()
+    processes_cache = nil
+end
 
 -- Format memory size in bytes to a human-readable string in M or G.
 local function format_memory_size(size_in_bytes, show_B)
@@ -226,31 +234,192 @@ local function render_view_options()
 
 end
 
+local function render_process_view_label(text)
+    return ui.label({
+        text = text,
+        maxLines = 1,
+        fontSize = 12,
+        color = "on_surface_variant",
+    })
+end
+
+local process_view_hover_key = nil
+
+local function render_process_view_value(text, align, hover_key)
+    local ret = ui.label({
+        text = text,
+        maxLines = 1,
+        fontSize = 12,
+        flexGrow = 1,
+        textAlign = align,
+        color = "on_surface"
+    })
+
+    if hover_key then
+        local new_ret = ui.column({
+            flexGrow = 1,
+        }, {ret})
+        new_ret.props.key = hover_key
+        new_ret.props.onHover = function(state, key)
+            local old_state = process_view_hover_key
+            if state == "true" then
+                process_view_hover_key = hover_key
+            else
+                process_view_hover_key = nil
+            end
+            if old_state ~= process_view_hover_key then
+                render()
+            end
+        end
+        new_ret.props.onClick = function()
+            noctalia.copyToClipboard(text, "text/plain")
+            noctalia.notify(noctalia.tr("procs.copied_to_clipboard"), text)
+        end
+        if process_view_hover_key == hover_key then
+            ret.props.color = "on_hover"
+            new_ret.props.fill = "hover"
+        else
+            ret.props.color = "on_surface"
+            new_ret.props.fill = "on_hover/0.0"
+        end
+        ret = new_ret
+    end
+    return ret
+end
+
+-- Implementation for rendering the detailed view of a single process.
+local function render_process_view()
+    if process_view_data == nil then
+        return
+    end
+
+    local children = {}
+    table.insert(children,
+        ui.column({
+            paddingV = 1,
+            gap = 2,
+        }, {
+            ui.button({
+                key = "kill-process",
+                tooltip = noctalia.tr("procs.process_buttons.kill"),
+                glyph = "square-x",
+                controlSize = "sm",
+                variant = "destructive",
+                onClick = function()
+                    noctalia.runAsync({"kill", tostring(process_view_pid)})
+                    process_view_data = nil
+                    process_view_pid = nil
+                    render()
+                end
+            }),
+            ui.button({
+                key = "force-kill-process",
+                tooltip = noctalia.tr("procs.process_buttons.force_kill"),
+                glyph = "skull",
+                controlSize = "sm",
+                variant = "destructive",
+                onClick = function()
+                    noctalia.runAsync({"kill", "-9", tostring(process_view_pid)})
+                    process_view_data = nil
+                    process_view_pid = nil
+                    render()
+                end
+            }),
+            ui.spacer({ flexGrow = 1 }),
+            ui.button({
+                key = "close-process-view",
+                tooltip = noctalia.tr("procs.process_buttons.cancel"),
+                glyph = "cancel",
+                controlSize = "sm",
+                variant = "primary",
+                onClick = function()
+                    process_view_data = nil
+                    process_view_pid = nil
+                    render()
+                end
+            }),
+        })
+    )
+
+    table.insert(children, ui.separator({ orientation = "auto", color = "on_surface_variant" }))
+
+    table.insert(children, ui.column({},
+    {
+        render_process_view_label("comm:"),
+        render_process_view_label("PID:"),
+        render_process_view_label("PPID:"),
+        render_process_view_label("exe:"),
+        render_process_view_label("cmdline:"),
+        render_process_view_label("cpu:"),
+    }))
+
+    table.insert(children, ui.column({
+        flexGrow = 4,
+    }, {
+        render_process_view_value(process_view_data.comm, "start", "process_view_comm"),
+        render_process_view_value(tostring(process_view_data.pid), "start", "process_view_pid"),
+        render_process_view_value(tostring(process_view_data.ppid), "start", "process_view_ppid"),
+        render_process_view_value(process_view_data.exe, "start", "process_view_exe"),
+        render_process_view_value(table.concat(process_view_data.cmdline, " "), "start", "process_view_cmdline"),
+        render_process_view_value(tostring(process_view_data.cpu) .. "%", "start"),
+    }))
+
+    table.insert(children, ui.separator({ orientation = "auto", color = "on_surface_variant" }))
+
+    table.insert(children, ui.column({},
+    {
+        render_process_view_label("private:"),
+        render_process_view_label("shared:"),
+        render_process_view_label("mem:"),
+        render_process_view_label("swap:"),
+        render_process_view_label("io read:"),
+        render_process_view_label("io write:"),
+    }))
+
+    table.insert(children, ui.column({
+        flexGrow = 1,
+    }, {
+        render_process_view_value(format_memory_size(process_view_data.private), "end"),
+        render_process_view_value(format_memory_size(process_view_data.shared), "end"),
+        render_process_view_value(format_memory_size(process_view_data.mem), "end"),
+        render_process_view_value(format_memory_size(process_view_data.swap), "end"),
+        render_process_view_value(format_memory_size(process_view_data.io_read, true) .. "/s", "end"),
+        render_process_view_value(format_memory_size(process_view_data.io_write, true) .. "/s", "end"),
+    }))
+
+    table.insert(children, ui.separator({ orientation = "auto", color = "on_surface_variant" }))
+
+    return children
+end
+
 -- Render the system information.
 local function render_info()
     local children = {}
 
-    if g_data.distro_info.icon_path ~= nil then
-        table.insert(children, ui.image({
-            key = "img-distro",
-            path = g_data.distro_info.icon_path,
-            width = 110,
-            height = 110,
-        }))
-    end
-
-    if show_view_options then
-        table.insert(children, render_view_options())
+    if process_view_data ~= nil then
+        children = render_process_view()
     else
-        table.insert(children, render_system_info())
+        if g_data.distro_info.icon_path ~= nil then
+            table.insert(children, ui.image({
+                key = "img-distro",
+                path = g_data.distro_info.icon_path,
+                width = 110,
+                height = 110,
+            }))
+        end
+
+        if show_view_options then
+            table.insert(children, render_view_options())
+        else
+            table.insert(children, render_system_info())
+        end
     end
 
     if g_data ~= nil and g_data["system_stats"] ~= nil then
         local system_stats = g_data["system_stats"]
-        local ms = tostring(noctalia.nowMs())
         if system_stats["cpu_graph_path"] ~= nil and noctalia.fileExists(system_stats["cpu_graph_path"]) then
             table.insert(children, ui.image({
-                key = "img-cpu-" .. ms,
+                key = "img-cpu-" .. data_load_ms,
                 path = system_stats["cpu_graph_path"],
                 width = 110,
                 height = 110,
@@ -258,7 +427,7 @@ local function render_info()
         end
         if system_stats["mem_graph_path"] ~= nil and noctalia.fileExists(system_stats["mem_graph_path"]) then
             table.insert(children, ui.image({
-                key = "img-mem-" .. ms,
+                key = "img-mem-" .. data_load_ms,
                 path = system_stats["mem_graph_path"],
                 width = 110,
                 height = 110,
@@ -479,6 +648,7 @@ local function render_processes_header()
                     g_order_by_context = column.data_key
                 end
                 sort_all_processes()
+                reset_processes_cache()
                 render()
             end
         }))
@@ -492,7 +662,6 @@ local function render_processes_header()
 end
 
 local hover_row_key = nil
-local expanded_key = nil
 local apps_expand_state = {}
 local apps_expanded = true
 local all_processes_expanded = true
@@ -559,9 +728,27 @@ local function render_processes_type_header(is_app)
                 else
                     all_processes_expanded = not all_processes_expanded
                 end
+                reset_processes_cache()
                 render()
             end
         }, children)
+end
+
+
+local function update_processes_hover_cache(default_hover_fill)
+    if processes_cache == nil then
+        return
+    end
+    for idx = 1, #processes_cache do
+        local process_row = processes_cache[idx]
+        if hover_row_key == process_row.props.key then
+            process_row.props.fill = default_hover_fill
+            process_row.props.borderWidth = 1
+        else
+            process_row.props.fill = "surface/0.0"
+            process_row.props.borderWidth = 0
+        end
+    end
 end
 
 -- Render the list of processes for the selected GPU, with sortable columns.
@@ -579,16 +766,19 @@ local function render_processes(processes, is_app, level)
         local process_children = {}
         local process_key = key_prefix .. "proc-row-" .. (process.pid or process.name or "")
         local is_hovered = hover_row_key == process_key
+
+        if process_view_pid and process_view_pid == process.pid then
+            process_view_data = process
+        end
+
         for col_idx = 1, #processes_data do
             local column = processes_data[col_idx]
-            local fill = (is_hovered or (expanded_key ~= nil and expanded_key == process_key)) and default_hover_fill or "surface/0.0"
-            local color = (is_hovered or (expanded_key ~= nil and expanded_key == process_key)) and default_hover_color or "on_surface"
+            local fill = "surface/0.0"
+            local color = is_hovered and default_hover_color or "on_surface"
             local fontWeight = "medium"
             if order_by == column.data_key or order_by == "-" .. column.data_key then
-                if not is_hovered then
-                    fill = noctalia.getConfig("sort_column_background") or "surface_variant"
-                    color = noctalia.getConfig("sort_column_color") or "on_surface_variant"
-                end
+                fill = noctalia.getConfig("sort_column_background") or "surface_variant"
+                color = noctalia.getConfig("sort_column_color") or "on_surface_variant"
                 fontWeight = "bold"
             end
 
@@ -641,129 +831,42 @@ local function render_processes(processes, is_app, level)
             end
         end
 
-        if expanded_key ~= nil and expanded_key == process_key then
-            children[children_N] = ui.column({
-                radius = 8,
-                border = "outline",
-                borderWidth = 1,
-                padding = 1,
-                fill = default_hover_fill
-            }, {
-                ui.row({
-                    key = process_key,
-                    gap = 8,
-                    onClick = function()
-                        expanded_key = nil
-                        render()
-                    end
-                }, process_children),
-                ui.label({
-                    text = table.concat(process.cmdline, " "),
-                    flexGrow = 1,
-                    maxLines = 4,
-                    fontSize = 12,
-                    color = default_hover_color,
-                }),
-                ui.row({
-                    key = process_key .. "-expanded",
-                    gap = 8,
-                    padding = 4,
-                    radius = 2,
-                    fill = default_hover_fill,
-                }, {
-                    ui.button({
-                        text = noctalia.tr("procs.process_buttons.kill.label"),
-                        tooltip = noctalia.tr("procs.process_buttons.kill.tip"),
-                        glyph = "square-x",
-                        variant = "destructive",
-                        controlSize = "sm",
-                        onClick = function()
-                            noctalia.runAsync({"kill", tostring(process.pid)})
-                            expanded_key = nil
-                            render()
-                        end
-                    }),
-                    ui.button({
-                        text = noctalia.tr("procs.process_buttons.force_kill.label"),
-                        tooltip = noctalia.tr("procs.process_buttons.force_kill.tip"),
-                        glyph = "skull",
-                        variant = "destructive",
-                        controlSize = "sm",
-                        onClick = function()
-                            noctalia.runAsync({"kill", "-9", tostring(process.pid)})
-                            expanded_key = nil
-                            render()
-                        end
-                    }),
-                    ui.spacer({flexGrow = 1}),
-                    ui.button({
-                        text = noctalia.tr("procs.process_buttons.copy_pid.label"),
-                        tooltip = noctalia.tr("procs.process_buttons.copy_pid.tip"),
-                        glyph = "clipboard",
-                        variant = "default",
-                        controlSize = "sm",
-                        onClick = function()
-                            noctalia.copyToClipboard(process.pid, "text/plain")
-                            expanded_key = nil
-                            render()
-                        end
-                    }),
-                    ui.button({
-                        text = noctalia.tr("procs.process_buttons.copy_cmdline.label"),
-                        tooltip = noctalia.tr("procs.process_buttons.copy_cmdline.tip"),
-                        glyph = "clipboard",
-                        variant = "default",
-                        controlSize = "sm",
-                        onClick = function()
-                            noctalia.copyToClipboard(table.concat(process.cmdline, " "), "text/plain")
-                            expanded_key = nil
-                            render()
-                        end
-                    }),
-                    ui.button({
-                        text = noctalia.tr("procs.process_buttons.cancel.label"),
-                        tooltip = noctalia.tr("procs.process_buttons.cancel.tip"),
-                        glyph = "cancel",
-                        variant = "primary",
-                        controlSize = "sm",
-                        onClick = function()
-                            expanded_key = nil
-                            render()
-                        end
-                    })
-                })
-            })
-        else
-            children[children_N] = ui.row({
-                key = process_key,
-                gap = 8,
-                padding = 1,
-                radius = 16,
-                border = "outline",
-                borderWidth = (is_hovered or (expanded_key ~= nil and expanded_key == process_key)) and 1 or 0,
-                fill = (is_hovered or (expanded_key ~= nil and expanded_key == process_key)) and default_hover_fill or "surface",
-                onHover = function(state, key)
-                    local old_state = hover_row_key
-                    if state == "true" then
-                        hover_row_key = process_key
-                    else
-                        hover_row_key = nil
-                    end
-                    if old_state ~= hover_row_key then
-                        render()
-                    end
-                end,
-                onClick = function()
-                    if is_app then
-                        toggle_app_expand_state(process.app_id)
-                        render()
-                    elseif expanded_key == nil or expanded_key ~= process_key then
-                        expanded_key = process_key
-                        render()
-                    end
+        children[children_N] = ui.row({
+            key = process_key,
+            gap = 8,
+            padding = 1,
+            radius = 16,
+            border = "outline",
+            borderWidth = is_hovered and 1 or 0,
+            fill = is_hovered and default_hover_fill or "surface",
+            onHover = function(state, key)
+                local old_state = hover_row_key
+                if state == "true" then
+                    hover_row_key = process_key
+                else
+                    hover_row_key = nil
                 end
-            }, process_children)
-        end
+                if old_state ~= hover_row_key then
+                    update_processes_hover_cache(default_hover_fill)
+                    render()
+                end
+            end,
+            onClick = function()
+                if is_app then
+                    toggle_app_expand_state(process.app_id)
+                    reset_processes_cache()
+                    render()
+                elseif process_view_pid == nil or process_view_pid ~= process.pid then
+                    process_view_pid = process.pid
+                    process_view_data = process
+                    render()
+                else
+                    process_view_pid = nil
+                    process_view_data = nil
+                    render()
+                end
+            end
+        }, process_children)
         if is_app and is_app_expanded(process.app_id) then
             local app_processes_children = render_processes(process.processes, false, level + 1)
             table.move(app_processes_children, 1, #app_processes_children, children_N + 1, children)
@@ -824,6 +927,10 @@ local function render_processes_block()
     local rows
     local children = {}
 
+    if processes_cache ~= nil then
+        return processes_cache
+    end
+
     if view_show_apps then
         local level = 0
         if view_show_all_processes then
@@ -848,6 +955,7 @@ local function render_processes_block()
         end
     end
 
+    processes_cache = children
     return children
 end
 
@@ -858,6 +966,8 @@ render = function()
     end
 
     local children = render_header_block()
+
+    local processes_block = render_processes_block()
 
     table.insert(children, render_info())
     table.insert(children,
@@ -879,7 +989,7 @@ render = function()
                     fill = "surface",
                     radius = 10,
                     gap = 4,
-                }, render_processes_block())
+                }, processes_block)
             })
     )
 
@@ -915,7 +1025,9 @@ local function run_processes_stream()
                         local decoded = noctalia.json.decode(content) or nil
                         if decoded then
                             g_data = decoded
+                            data_load_ms = tostring(noctalia.nowMs())
                             sort_all_processes()
+                            reset_processes_cache()
                             render()
                         end
                     end

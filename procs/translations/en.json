@@ -35,26 +35,9 @@
       }
     },
     "process_buttons": {
-      "cancel": {
-        "label": "Cancel",
-        "tip": "Cancel the expanded process view"
-      },
-      "copy_cmdline": {
-        "label": "Copy Command Line",
-        "tip": "Copy the process command line to the clipboard"
-      },
-      "copy_pid": {
-        "label": "Copy PID",
-        "tip": "Copy the process ID to the clipboard"
-      },
-      "force_kill": {
-        "label": "Terminate",
-        "tip": "Force kill the expanded process (SIGKILL)"
-      },
-      "kill": {
-        "label": "Kill",
-        "tip": "Kill the expanded process (SIGINT)"
-      }
+      "cancel": "Close the process view",
+      "force_kill": "Force kill (SIGKILL) the selected process. Close the process view.",
+      "kill": "Kill (SIGINT) the selected process. Close the process view."
     },
     "processes_header": "All Processes",
     "system_info": {

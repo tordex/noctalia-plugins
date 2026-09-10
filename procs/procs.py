@@ -126,6 +126,14 @@ class Proc:
         except LookupError:
             return []
 
+    def get_name(self, pid):
+        try:
+            with self.open(pid, 'comm') as f:
+                name = f.read().strip()
+                return name
+        except LookupError:
+            return None
+
     def get_mem_stats(self, pid):
         have_swap_pss = False
         have_pss = False
@@ -179,12 +187,20 @@ class Proc:
                 "shared": int(shared * 1024),
                 "swap": int(swap * 1024),
             }
-        except LookupError:
+        except (LookupError, ProcessLookupError):
             return {
-                "private": None,
-                "shared": None,
-                "swap": None,
+                "private": 0,
+                "shared": 0,
+                "swap": 0,
             }
+            # shared = int(proc.open(pid, 'statm').readline().split()[2])
+            # shared *= PAGESIZE
+            # private = rss - shared
+            # return {
+            #     "private": int(private * 1024),
+            #     "shared": int(shared * 1024),
+            #     "swap": int(swap * 1024),
+            # }
 
     def get_cpu_ticks(self, pid: int):
         """Reads the system's total CPU time and the specific process's ticks."""
@@ -207,7 +223,7 @@ class Proc:
                     "system_ticks": total_system_ticks,
                     "ticks": proc_ticks
                 }
-        except LookupError as e:
+        except (LookupError, ProcessLookupError) as e:
             return {
                 "system_ticks": None,
                 "ticks": None
@@ -223,7 +239,7 @@ class Proc:
                 # so parse everything strictly after the last closing parenthesis ')'
                 post_comm = stat_content[stat_content.rfind(")") + 2 :].split()
                 return int(post_comm[1])  # field 4 (index 1)
-        except LookupError as e:
+        except (LookupError, ProcessLookupError) as e:
             return None
 
     def get_io_bytes(self, pid: int):
@@ -240,10 +256,10 @@ class Proc:
                 "read_b": read_b,
                 "write_b": write_b
             }
-        except LookupError:
+        except (LookupError, ProcessLookupError, PermissionError):
             return {
-                "read_b": None,
-                "write_b": None
+                "read_b": 0,
+                "write_b": 0
             }
 
     def get_cpu_times(self):
@@ -407,7 +423,17 @@ def fetch_processes(interval: float):
 
         exe = proc.get_exe(pid)
         cmdline = proc.get_cmdline(pid)
-        if exe is None or cmdline is None:
+        comm = proc.get_name(pid)
+
+        if exe is None:
+            if len(cmdline) > 0:
+                exe = cmdline[0]
+        if exe is not None:
+            name = os.path.basename(exe)
+        else:
+            name = comm
+
+        if name is None:
             continue
 
         cpu_ticks = proc.get_cpu_ticks(pid)
@@ -415,8 +441,6 @@ def fetch_processes(interval: float):
             continue
 
         io_bytes = proc.get_io_bytes(pid)
-        if io_bytes["read_b"] is None or io_bytes["write_b"] is None:
-            continue
 
         ppid = proc.get_ppid(pid)
         if ppid is None:
@@ -453,12 +477,16 @@ def fetch_processes(interval: float):
         }
 
         proc_data = proc.get_mem_stats(pid)
+        if proc_data["private"] == 0 and proc_data["shared"] == 0 and proc_data["swap"] == 0:
+            continue
+
         proc_data.update({
             "pid": pid,
             "ppid": ppid,
             "exe": exe,
-            "name": os.path.basename(exe),
-            "icon": icon_path(os.path.basename(exe), 24),
+            "name": name,
+            "comm": comm,
+            "icon": icon_path(name, 24),
             "cmdline": cmdline,
             "mem": proc_data["private"] + proc_data["shared"],
             "cpu": round(cpu_usage_percent, 1),
