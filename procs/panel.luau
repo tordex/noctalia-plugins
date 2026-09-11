@@ -316,6 +316,7 @@ local function render_process_view()
                 glyph = "square-x",
                 controlSize = "sm",
                 variant = "destructive",
+                enabled = process_view_data.uid == g_data.system_stats.uid,
                 onClick = function()
                     noctalia.runAsync({"kill", tostring(process_view_pid)})
                     process_view_data = nil
@@ -329,6 +330,7 @@ local function render_process_view()
                 glyph = "skull",
                 controlSize = "sm",
                 variant = "destructive",
+                enabled = process_view_data.uid == g_data.system_stats.uid,
                 onClick = function()
                     noctalia.runAsync({"kill", "-9", tostring(process_view_pid)})
                     process_view_data = nil
