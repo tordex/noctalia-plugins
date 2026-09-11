@@ -746,7 +746,7 @@ local function render_processes_type_header(is_app)
 end
 
 
-local function update_processes_hover_cache(default_hover_fill)
+local function update_processes_hover_cache(default_hover_fill, default_hover_color)
     if processes_cache == nil then
         return
     end
@@ -761,6 +761,16 @@ local function update_processes_hover_cache(default_hover_fill)
                 else
                     process_row.props.fill = "surface/0.0"
                     process_row.props.borderWidth = 0
+                end
+                for child_idx = 1, #process_row.children do
+                    local label = process_row.children[child_idx].label
+                    if label ~= nil then
+                        if hover_row_key == process_row.props.key then
+                            label.props.color = default_hover_color
+                        else
+                            label.props.color = "on_surface"
+                        end
+                    end
                 end
             end
         end
@@ -786,11 +796,11 @@ local function filter_process(process)
 
     for _, field in pairs(search_fields) do
         if typeof(field) == "string" then
-            if process[field] and string.find(tostring(process[field]), search_query:sub(2), 1, true) then
+            if process[field] and string.find(tostring(process[field]), search_query, 1, true) then
                 return true
             end
         elseif typeof(field) == "table" then
-            if process[field] and string.find(table.concat(process[field], " "), search_query:sub(2), 1, true) then
+            if process[field] and string.find(table.concat(process[field], " "), search_query, 1, true) then
                 return true
             end
         end
@@ -852,10 +862,22 @@ local function render_processes(processes, is_app, level)
                 fontWeight = "bold"
             end
 
+            local value_label = ui.label({
+                            key = process_key .. "-col-" .. tostring(col_idx) .. "-" .. tostring(level) .. "-label",
+                            text = column.process_value(process[column.data_key]),
+                            maxLines = 1,
+                            flexGrow = 1,
+                            color = color,
+                            textAlign = column.textAlign,
+                            fontWeight = fontWeight,
+                        })
+
+
             if col_idx == 1 then
                 process_children[col_idx] = ui.column({
                     flexGrow = column.flexGrow,
                     paddingH = 8,
+                    paddingV = 1,
                     fill = fill,
                     radius = 16,
                 }, {
@@ -875,15 +897,7 @@ local function render_processes(processes, is_app, level)
                             width = 16,
                             height = 16,
                         }),
-                        ui.label({
-                            key = process_key .. "-col-" .. tostring(col_idx) .. "-" .. tostring(level) .. "-label",
-                            text = column.process_value(process[column.data_key]),
-                            maxLines = 1,
-                            flexGrow = 1,
-                            color = process[column.data_key] and color or color .. "/0.4",
-                            textAlign = column.textAlign,
-                            fontWeight = fontWeight,
-                        })
+                        value_label
                     })
                 })
             else
@@ -891,26 +905,22 @@ local function render_processes(processes, is_app, level)
                     key = process_key .. "-col-" .. tostring(col_idx) .. "-" .. tostring(level) .. "-column",
                     flexGrow = column.flexGrow,
                     paddingH = 8,
+                    paddingV = 1,
                     fill = fill,
                     radius = 16,
-                }, {
-                    ui.label({
-                        key = process_key .. "-col-" .. tostring(col_idx) .. "-" .. tostring(level) .. "-label",
-                        text = column.process_value(process[column.data_key]),
-                        maxLines = 1,
-                        flexGrow = 1,
-                        color = process[column.data_key] and color or color .. "/0.4",
-                        textAlign = column.textAlign,
-                        fontWeight = fontWeight,
-                    })
-                })
+                }, { value_label })
+            end
+            -- We don't change color for "order by" column, so don't save the reference for it
+            if not (order_by == column.data_key or order_by == "-" .. column.data_key) then
+                -- Save refference to the value label for update_processes_hover_cache
+                process_children[col_idx].label = value_label
             end
         end
 
         children[children_N] = ui.row({
             key = process_key,
             gap = 8,
-            padding = 1,
+            paddingV = 1,
             radius = 16,
             fill = is_hovered and default_hover_fill or "surface/0.0",
             onHover = function(state, key)
@@ -921,7 +931,7 @@ local function render_processes(processes, is_app, level)
                     hover_row_key = nil
                 end
                 if old_state ~= hover_row_key then
-                    update_processes_hover_cache(default_hover_fill)
+                    update_processes_hover_cache(default_hover_fill, default_hover_color)
                     render()
                 end
             end,
