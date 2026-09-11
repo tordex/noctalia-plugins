@@ -176,6 +176,7 @@ class Proc:
                 "private": int(private * 1024),
                 "shared": int(shared * 1024),
                 "swap": int(swap * 1024),
+                "mem": int((private + shared) * 1024)
             }
         except (LookupError, ProcessLookupError):
             shared = int(proc.open(pid, 'statm').readline().split()[2])
@@ -185,6 +186,7 @@ class Proc:
                 "private": int(private * 1024),
                 "shared": int(shared * 1024),
                 "swap": int(swap * 1024),
+                "mem": int(private * 1024)
             }
 
     def get_cpu_ticks(self, pid: int):
@@ -480,7 +482,7 @@ def fetch_processes(interval: float):
         }
 
         proc_data = proc.get_mem_stats(pid)
-        if proc_data["private"] == 0 and proc_data["shared"] == 0 and proc_data["swap"] == 0:
+        if proc_data["private"] == 0 and proc_data["shared"] == 0 and proc_data["swap"] == 0 and proc_data["mem"] == 0:
             continue
 
         uid = proc.get_uid(pid)
@@ -501,7 +503,6 @@ def fetch_processes(interval: float):
             "username": username,
             "icon": icon_path(name, 24),
             "cmdline": cmdline,
-            "mem": proc_data["private"] + proc_data["shared"],
             "cpu": round(cpu_usage_percent, 1),
             "io_read": int(delta_read_b / interval),
             "io_write": int(delta_write_b / interval),
@@ -595,7 +596,7 @@ def update_apps_metrics(apps: dict):
         app_data["io_write"] = total_write_b_sec
 
 def main():
-    interval = (int)(sys.argv[1])
+    interval = (int)(sys.argv[1]) if len(sys.argv) > 1 else 1
     skin = sys.argv[2] if len(sys.argv) > 2 else "dark"
 
     while True:

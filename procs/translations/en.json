@@ -39,7 +39,7 @@
       "force_kill": "Force kill (SIGKILL) the selected process. Close the process view.",
       "kill": "Kill (SIGINT) the selected process. Close the process view."
     },
-    "processes_header": "All Processes",
+    "processes_header": "Processes",
     "system_info": {
       "unknown": "Linux"
     }
@@ -81,9 +81,11 @@
   "tip_close": "Close",
   "tip_options": "View options",
   "tip_settings": "Plugin settings",
-  "title": "Processes Monitor",
-  "user_processes_label": "User Processes",
+  "tip_clear_search": "Clear search text",
+  "title": "Processes",
+  "user_processes_label": "User",
   "user_processes_tip": "Show only user processes",
-  "system_processes_label": "System Processes",
-  "system_processes_tip": "Show only system processes"
+  "system_processes_label": "System",
+  "system_processes_tip": "Show only system processes",
+  "search_placeholder": "type to search"
 }

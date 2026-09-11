@@ -20,9 +20,16 @@ local data_load_ms = "none"
 local processes_cache = nil
 local process_view_data = nil
 local process_view_pid = nil
+local search_query = ""
+local search_query_ctl = 0
 
 local function reset_processes_cache()
     processes_cache = nil
+end
+
+-- Helper function to check if a string starts with a given prefix.
+local function starts_with(str: string, prefix: string): boolean
+    return string.sub(str, 1, #prefix) == prefix
 end
 
 -- Format memory size in bytes to a human-readable string in M or G.
@@ -760,6 +767,38 @@ local function update_processes_hover_cache(default_hover_fill)
     end
 end
 
+-- Filter process. Returns true to show process and false to hide process
+local function filter_process(process)
+    if search_query == "" then
+        return true
+    end
+
+    local num_text = tonumber(search_query)
+    if num_text ~= nil then
+        -- Search numbers in pid and ppid
+        if num_text == process.pid or num_text == process.ppid then
+            return true
+        end
+        return false
+    end
+
+    local search_fields = { "name", "cmdline", "exe", "comm", "username" }
+
+    for _, field in pairs(search_fields) do
+        if typeof(field) == "string" then
+            if process[field] and string.find(tostring(process[field]), search_query:sub(2), 1, true) then
+                return true
+            end
+        elseif typeof(field) == "table" then
+            if process[field] and string.find(table.concat(process[field], " "), search_query:sub(2), 1, true) then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
 -- Render the list of processes for the selected GPU, with sortable columns.
 local function render_processes(processes, is_app, level)
     level = level or 0
@@ -785,6 +824,10 @@ local function render_processes(processes, is_app, level)
                     continue
                 end
             end
+        end
+
+        if not filter_process(process) then
+            continue
         end
 
         children_N = children_N + 1
@@ -927,7 +970,7 @@ end
 
 local function render_header_block()
     return {
-        ui.row({ key = "header", gap = 8, align = "center" }, {
+        ui.row({ key = "header", gap = 4, align = "center" }, {
             ui.glyph({ name = "device-desktop-analytics", size = 16 }),
             ui.label({
                 key = "title",
@@ -936,12 +979,13 @@ local function render_header_block()
                 fontWeight = "bold",
                 color = "on_surface",
             }),
-            ui.spacer({ key = "title-gap-1", flexGrow = 1 }),
+            ui.spacer({ key = "title-gap-2", flexGrow = 0, width = 8 }),
             ui.button({
                 key = "show_user_processes",
                 glyph = "user",
                 text = noctalia.tr("user_processes_label"),
                 variant = "default",
+                controlSize = "sm",
                 tooltip = noctalia.tr("user_processes_tip"),
                 selected = show_user_processes,
                 onClick = function()
@@ -955,10 +999,39 @@ local function render_header_block()
                 glyph = "cpu",
                 text = noctalia.tr("system_processes_label"),
                 variant = "default",
+                controlSize = "sm",
                 tooltip = noctalia.tr("system_processes_tip"),
                 selected = not show_user_processes,
                 onClick = function()
                     show_user_processes = false
+                    reset_processes_cache()
+                    render()
+                end,
+            }),
+            ui.spacer({ key = "title-gap-2", flexGrow = 1 }),
+            ui.glyph({ name = "search", size = 16 }),
+            ui.input({
+                key = "search-" .. tostring(search_query_ctl),
+                placeholder = noctalia.tr("search_placeholder"),
+                flexGrow = 6,
+                controlSize = "sm",
+                value = search_query,
+                focus = true,
+                onChange = function(value)
+                    search_query = value
+                    reset_processes_cache()
+                    render()
+                end
+            }),
+            ui.button({
+                key = "clear_search",
+                glyph = "x",
+                variant = "default",
+                enabled = search_query ~= "",
+                tooltip = noctalia.tr("tip_clear_search"),
+                onClick = function()
+                    search_query = ""
+                    search_query_ctl = search_query_ctl + 1
                     reset_processes_cache()
                     render()
                 end,
@@ -998,32 +1071,35 @@ local function render_header_block()
 end
 
 local function render_processes_block()
-    local rows
-    local children = {}
-
     if processes_cache ~= nil then
         return processes_cache
     end
 
-    if view_show_apps and show_user_processes then
+    local rows
+    local children = {}
+
+    local need_render_apps = view_show_apps and show_user_processes and search_query == ""
+    local need_render_processes = view_show_all_processes or not show_user_processes or search_query ~= ""
+
+    if need_render_apps then
         local level = 0
-        if view_show_all_processes then
+        if need_render_processes then
             table.insert(children, render_processes_type_header(true))
             level = 1
         end
-        if apps_expanded and view_show_apps or (not view_show_all_processes) then
+        if apps_expanded or not need_render_processes then
             rows = render_processes(g_data["applications"], true, level)
             table.move(rows, 1, #rows, #children + 1, children)
         end
     end
 
-    if view_show_all_processes then
+    if need_render_processes then
         local level = 0
-        if view_show_apps then
+        if need_render_apps then
             level = 1
             table.insert(children, render_processes_type_header(false))
         end
-        if all_processes_expanded and view_show_all_processes or (not view_show_apps) then
+        if all_processes_expanded or not need_render_apps then
             rows = render_processes(g_data["processes"], false, level)
             table.move(rows, 1, #rows, #children + 1, children)
         end
@@ -1074,10 +1150,6 @@ render = function()
     }, children))
 end
 
--- Helper function to check if a string starts with a given prefix.
-local function starts_with(str: string, prefix: string): boolean
-    return string.sub(str, 1, #prefix) == prefix
-end
 
 local function run_processes_stream()
     local plugin_dir = noctalia.pluginDir()
