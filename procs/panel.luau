@@ -864,7 +864,7 @@ local function render_processes(processes, is_app, level)
 
             local value_label = ui.label({
                             key = process_key .. "-col-" .. tostring(col_idx) .. "-" .. tostring(level) .. "-label",
-                            text = column.process_value(process[column.data_key]),
+                            text = if process[column.data_key] ~= 0 then column.process_value(process[column.data_key]) else "—",
                             maxLines = 1,
                             flexGrow = 1,
                             color = color,

@@ -583,17 +583,23 @@ def update_apps_metrics(apps: dict):
         total_cpu = 0.0
         total_read_b_sec = 0
         total_write_b_sec = 0
+        total_io = 0
+        total_swap = 0
 
         for proc_data in app_data["processes"]:
             total_mem += proc_data.get("mem", 0)
             total_cpu += proc_data.get("cpu", 0.0)
             total_read_b_sec += proc_data.get("io_read", 0)
             total_write_b_sec += proc_data.get("io_write", 0)
+            total_io += proc_data.get("io", 0)
+            total_swap += proc_data.get("swap", 0)
 
         app_data["mem"] = total_mem
         app_data["cpu"] = round(total_cpu, 1)
         app_data["io_read"] = total_read_b_sec
         app_data["io_write"] = total_write_b_sec
+        app_data["io"] = total_io
+        app_data["swap"] = total_swap
 
 def main():
     interval = (int)(sys.argv[1]) if len(sys.argv) > 1 else 1
