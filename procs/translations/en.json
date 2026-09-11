@@ -81,5 +81,9 @@
   "tip_close": "Close",
   "tip_options": "View options",
   "tip_settings": "Plugin settings",
-  "title": "Processes Monitor"
+  "title": "Processes Monitor",
+  "user_processes_label": "User Processes",
+  "user_processes_tip": "Show only user processes",
+  "system_processes_label": "System Processes",
+  "system_processes_tip": "Show only system processes"
 }

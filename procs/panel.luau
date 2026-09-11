@@ -8,6 +8,7 @@ local procs_pid = -1
 local g_order_by_context = "mem"
 
 local show_view_options = false
+local show_user_processes = true
 
 local view_show_apps = noctalia.getConfig("show_apps")
 local view_show_all_processes = noctalia.getConfig("show_all_processes")
@@ -769,9 +770,24 @@ local function render_processes(processes, is_app, level)
     local order_by = get_order_by(g_order_by_context, is_app)
     local default_hover_fill = noctalia.getConfig("process_hover_background") or "surface_variant"
     local default_hover_color = noctalia.getConfig("process_hover_color") or "on_surface_variant"
+    local uid = g_data.system_stats.uid
     for row_idx = 1, #processes do
-        children_N = children_N + 1
         local process = processes[row_idx]
+        if not is_app then
+            if show_user_processes then
+                if process.uid ~= uid then
+                    -- Skip system processes when showing user processes
+                    continue
+                end
+            else
+                if process.uid == uid then
+                    -- Skip user processes when showing system processes
+                    continue
+                end
+            end
+        end
+
+        children_N = children_N + 1
         local process_key = key_prefix .. "proc-row-" .. (process.pid or process.name or "")
         local is_hovered = hover_row_key == process_key
 
@@ -912,6 +928,7 @@ end
 local function render_header_block()
     return {
         ui.row({ key = "header", gap = 8, align = "center" }, {
+            ui.glyph({ name = "device-desktop-analytics", size = 16 }),
             ui.label({
                 key = "title",
                 text = noctalia.tr("title"),
@@ -919,7 +936,34 @@ local function render_header_block()
                 fontWeight = "bold",
                 color = "on_surface",
             }),
-            ui.spacer({ key = "gap", flexGrow = 1 }),
+            ui.spacer({ key = "title-gap-1", flexGrow = 1 }),
+            ui.button({
+                key = "show_user_processes",
+                glyph = "user",
+                text = noctalia.tr("user_processes_label"),
+                variant = "default",
+                tooltip = noctalia.tr("user_processes_tip"),
+                selected = show_user_processes,
+                onClick = function()
+                    show_user_processes = true
+                    reset_processes_cache()
+                    render()
+                end,
+            }),
+            ui.button({
+                key = "show_system_processes",
+                glyph = "cpu",
+                text = noctalia.tr("system_processes_label"),
+                variant = "default",
+                tooltip = noctalia.tr("system_processes_tip"),
+                selected = not show_user_processes,
+                onClick = function()
+                    show_user_processes = false
+                    reset_processes_cache()
+                    render()
+                end,
+            }),
+            ui.spacer({ key = "title-gap-2", flexGrow = 1 }),
             ui.button({
                 key = "options",
                 glyph = "adjustments-horizontal",
@@ -961,7 +1005,7 @@ local function render_processes_block()
         return processes_cache
     end
 
-    if view_show_apps then
+    if view_show_apps and show_user_processes then
         local level = 0
         if view_show_all_processes then
             table.insert(children, render_processes_type_header(true))
