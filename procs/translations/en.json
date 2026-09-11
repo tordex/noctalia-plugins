@@ -9,13 +9,13 @@
         "label": "CPU",
         "tip": "CPU Usage"
       },
-      "io_read": {
-        "label": "IO READ",
-        "tip": "I/O Read Usage"
+      "disk": {
+        "label": "DISK",
+        "tip": "Disk I/O Usage"
       },
-      "io_write": {
-        "label": "IO WRITE",
-        "tip": "I/O Write Usage"
+      "username": {
+        "label": "USER",
+        "tip": "Process Owner"
       },
       "mem": {
         "label": "MEM",

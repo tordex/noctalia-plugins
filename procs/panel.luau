@@ -79,18 +79,21 @@ local info_row_hover_key = ""
 
 local function render_system_info_row(glyph, text)
     local row_key = "info-row-" .. glyph
-    local border_width = 0
+
+    local fill = "on_surface_variant/0.0"
+    local color = "on_surface_variant"
     if row_key == info_row_hover_key then
-        border_width = 1
+        color = "on_hover"
+        fill = "hover"
     end
+
     return ui.row({
         key = row_key,
         gap = 8,
         radius = 16,
         paddingH = 8,
         paddingV = 2,
-        border = "on_surface_variant",
-        borderWidth = border_width,
+        fill = fill,
         onClick = function()
             if noctalia.copyToClipboard(text, "text/plain") then
                 noctalia.notify(noctalia.tr("procs.copied_to_clipboard"), text)
@@ -113,13 +116,13 @@ local function render_system_info_row(glyph, text)
         ui.glyph({
             key = row_key .. "-glyph",
             name = glyph,
-            color = "on_surface_variant",
+            color = color,
             size = 12,
         }),
         ui.label({
             key = row_key .. "-label",
             text = text,
-            color = "on_surface_variant",
+            color = color,
             maxLines = 1,
             fontSize = 12,
         }),
@@ -467,6 +470,15 @@ local processes_data = {
         sort_value = function(value) return value end
     },
     {
+        data_key = "username",
+        label = noctalia.tr("procs.process.username.label"),
+        tip = noctalia.tr("procs.process.username.tip"),
+        flexGrow = 2.0,
+        textAlign = "start",
+        process_value = function(value) return value end,
+        sort_value = function(value) return value end
+    },
+    {
         data_key = "cpu",
         label = noctalia.tr("procs.process.cpu.label"),
         tip = noctalia.tr("procs.process.cpu.tip"),
@@ -494,18 +506,9 @@ local processes_data = {
         sort_value = function(value) return value end
     },
     {
-        data_key = "io_read",
-        label = noctalia.tr("procs.process.io_read.label"),
-        tip = noctalia.tr("procs.process.io_read.tip"),
-        flexGrow = 2.0,
-        textAlign = "end",
-        process_value = function(value) return format_memory_size(value, true) .. "/s" end,
-        sort_value = function(value) return value end
-    },
-    {
-        data_key = "io_write",
-        label = noctalia.tr("procs.process.io_write.label"),
-        tip = noctalia.tr("procs.process.io_write.tip"),
+        data_key = "io",
+        label = noctalia.tr("procs.process.disk.label"),
+        tip = noctalia.tr("procs.process.disk.tip"),
         flexGrow = 2.0,
         textAlign = "end",
         process_value = function(value) return format_memory_size(value, true) .. "/s" end,
@@ -740,13 +743,18 @@ local function update_processes_hover_cache(default_hover_fill)
         return
     end
     for idx = 1, #processes_cache do
-        local process_row = processes_cache[idx]
-        if hover_row_key == process_row.props.key then
-            process_row.props.fill = default_hover_fill
-            process_row.props.borderWidth = 1
-        else
-            process_row.props.fill = "surface/0.0"
-            process_row.props.borderWidth = 0
+        local rows = processes_cache[idx].children
+        for rows_idx = 1, #rows do
+            local process_row = rows[rows_idx]
+            if process_row.type == "row" then
+                if hover_row_key == process_row.props.key then
+                    process_row.props.fill = default_hover_fill
+                    process_row.props.borderWidth = 1
+                else
+                    process_row.props.fill = "surface/0.0"
+                    process_row.props.borderWidth = 0
+                end
+            end
         end
     end
 end
@@ -755,7 +763,8 @@ end
 local function render_processes(processes, is_app, level)
     level = level or 0
     local key_prefix = is_app and "app-" or "all-"
-    local children = table.create(#processes)
+    local children = {}
+    local rows_holders = {}
     local children_N = 0
     local order_by = get_order_by(g_order_by_context, is_app)
     local default_hover_fill = noctalia.getConfig("process_hover_background") or "surface_variant"
@@ -763,7 +772,6 @@ local function render_processes(processes, is_app, level)
     for row_idx = 1, #processes do
         children_N = children_N + 1
         local process = processes[row_idx]
-        local process_children = {}
         local process_key = key_prefix .. "proc-row-" .. (process.pid or process.name or "")
         local is_hovered = hover_row_key == process_key
 
@@ -771,7 +779,10 @@ local function render_processes(processes, is_app, level)
             process_view_data = process
         end
 
-        for col_idx = 1, #processes_data do
+        local columns_num = #processes_data
+        local process_children = table.create(columns_num)
+
+        for col_idx = 1, columns_num do
             local column = processes_data[col_idx]
             local fill = "surface/0.0"
             local color = is_hovered and default_hover_color or "on_surface"
@@ -783,26 +794,30 @@ local function render_processes(processes, is_app, level)
             end
 
             if col_idx == 1 then
-                table.insert(process_children, ui.column({
+                process_children[col_idx] = ui.column({
                     flexGrow = column.flexGrow,
                     paddingH = 8,
                     fill = fill,
                     radius = 16,
                 }, {
                     ui.row({
+                        key = process_key .. "-col-" .. tostring(col_idx) .. "-" .. tostring(level) .. "-row",
                         flexGrow = 1,
                         gap = 4,
                     }, {
-                        ui.box({
-                            opacity = 0.0,
+                        ui.spacer({
+                            key = process_key .. "-col-" .. tostring(col_idx) .. "-" .. tostring(level) .. "-spacer",
                             width = 16 * level * (col_idx == 1 and 1 or 0),
+                            flexGrow = 0,
                         }),
                         ui.image({
+                            key = process_key .. "-col-" .. tostring(col_idx) .. "-" .. tostring(level) .. "-icon",
                             path = process.icon,
                             width = 16,
                             height = 16,
                         }),
                         ui.label({
+                            key = process_key .. "-col-" .. tostring(col_idx) .. "-" .. tostring(level) .. "-label",
                             text = column.process_value(process[column.data_key]),
                             maxLines = 1,
                             flexGrow = 1,
@@ -811,15 +826,17 @@ local function render_processes(processes, is_app, level)
                             fontWeight = fontWeight,
                         })
                     })
-                }))
+                })
             else
-                table.insert(process_children, ui.column({
+                process_children[col_idx] = ui.column({
+                    key = process_key .. "-col-" .. tostring(col_idx) .. "-" .. tostring(level) .. "-column",
                     flexGrow = column.flexGrow,
                     paddingH = 8,
                     fill = fill,
                     radius = 16,
                 }, {
                     ui.label({
+                        key = process_key .. "-col-" .. tostring(col_idx) .. "-" .. tostring(level) .. "-label",
                         text = column.process_value(process[column.data_key]),
                         maxLines = 1,
                         flexGrow = 1,
@@ -827,7 +844,7 @@ local function render_processes(processes, is_app, level)
                         textAlign = column.textAlign,
                         fontWeight = fontWeight,
                     })
-                }))
+                })
             end
         end
 
@@ -836,9 +853,7 @@ local function render_processes(processes, is_app, level)
             gap = 8,
             padding = 1,
             radius = 16,
-            border = "outline",
-            borderWidth = is_hovered and 1 or 0,
-            fill = is_hovered and default_hover_fill or "surface",
+            fill = is_hovered and default_hover_fill or "surface/0.0",
             onHover = function(state, key)
                 local old_state = hover_row_key
                 if state == "true" then
@@ -871,11 +886,26 @@ local function render_processes(processes, is_app, level)
             local app_processes_children = render_processes(process.processes, false, level + 1)
             table.move(app_processes_children, 1, #app_processes_children, children_N + 1, children)
             children_N = children_N + #app_processes_children
+        else
+            if children_N > 100 and level <= 1 then
+                rows_holders[#rows_holders + 1] = ui.column({ gap = 4 }, children)
+                children = {}
+                children_N = 0
+            end
         end
 
     end
 
-    return children
+    if children_N > 0  and level <= 1 then
+        rows_holders[#rows_holders + 1] = ui.column({ gap = 4 }, children)
+    end
+
+    -- For processes within applications we return the children directly instead of the rows_holders.
+    if  level > 1 then
+        return children
+    end
+
+    return rows_holders
 end
 
 
