@@ -810,7 +810,8 @@ local function filter_process(process)
 end
 
 -- Render the list of processes for the selected GPU, with sortable columns.
-local function render_processes(processes, level)
+local function render_processes(processes, level, holder)
+    holder = holder or false
     level = level or 0
     local key_prefix = "proc-"
     local children = {}
@@ -951,11 +952,11 @@ local function render_processes(processes, level)
             end
         }, process_children)
         if process.processes ~= nil and is_group_expanded(process.key) then
-            local group_processes_children = render_processes(process.processes, level + 1)
+            local group_processes_children = render_processes(process.processes, level + 1, false)
             table.move(group_processes_children, 1, #group_processes_children, children_N + 1, children)
             children_N = children_N + #group_processes_children
         else
-            if children_N > 100 and level <= 1 then
+            if children_N > 100 and holder then
                 rows_holders[#rows_holders + 1] = ui.column({ gap = 4 }, children)
                 children = {}
                 children_N = 0
@@ -964,12 +965,12 @@ local function render_processes(processes, level)
 
     end
 
-    if children_N > 0  and level <= 1 then
+    if children_N > 0 and holder then
         rows_holders[#rows_holders + 1] = ui.column({ gap = 4 }, children)
     end
 
     -- For processes within applications we return the children directly instead of the rows_holders.
-    if  level > 1 then
+    if  not holder then
         return children
     end
 
@@ -1089,7 +1090,7 @@ local function render_processes_block()
 
     if search_query == "" then
         if not show_user_processes then
-            rows = render_processes(g_data.system_processes, 0)
+            rows = render_processes(g_data.system_processes, 0, true)
             table.move(rows, 1, #rows, #children + 1, children)
         else
             if view_show_apps then
@@ -1099,7 +1100,7 @@ local function render_processes_block()
                     level = 1
                 end
                 if apps_expanded or not view_show_processes then
-                    rows = render_processes(g_data.applications, level)
+                    rows = render_processes(g_data.applications, level, true)
                     table.move(rows, 1, #rows, #children + 1, children)
                 end
             end
@@ -1111,13 +1112,13 @@ local function render_processes_block()
                     table.insert(children, render_processes_type_header(false))
                 end
                 if all_processes_expanded or not view_show_apps then
-                    rows = render_processes(g_data.user_processes, level)
+                    rows = render_processes(g_data.user_processes, level, true)
                     table.move(rows, 1, #rows, #children + 1, children)
                 end
             end
         end
     else
-        rows = render_processes(g_data.processes, 0)
+        rows = render_processes(g_data.processes, 0, true)
         table.move(rows, 1, #rows, #children + 1, children)
     end
 
