@@ -54,18 +54,11 @@ description_key = "settings.show_apps.description"
 default = true
 
 [[setting]]
-key = "show_all_processes"
+key = "show_processes"
 type = "bool"
-label_key = "settings.show_all_processes.label"
-description_key = "settings.show_all_processes.description"
+label_key = "settings.show_processes.label"
+description_key = "settings.show_processes.description"
 default = true
-
-[[setting]]
-key = "group_processes"
-type = "bool"
-label_key = "settings.group_processes.label"
-description_key = "settings.group_processes.description"
-default = false
 
 [[panel]]
 id = "panel"

@@ -495,6 +495,7 @@ def fetch_processes(interval: float):
 
         proc_data.update({
             "pid": pid,
+            "key": str(pid),
             "ppid": ppid,
             "exe": exe,
             "name": name,
@@ -566,7 +567,7 @@ def fetch_applications(processes: dict):
         if app_id not in ret:
             ret[app_id] = {
                 "name": get_app_name(app_id),
-                "app_id": app_id,
+                "key": app_id,
                 "icon": icon_path(app_id, 24),
                 "processes": {}
             }
@@ -601,6 +602,61 @@ def update_apps_metrics(apps: dict):
         app_data["io"] = total_io
         app_data["swap"] = total_swap
 
+
+def update_group_metrics(grouped_processes: dict):
+    output_data = []
+    for exe, procs in grouped_processes.items():
+        if len(procs) == 1:
+            output_data.append(procs[0])
+            continue
+        total_mem = 0
+        total_cpu = 0.0
+        total_read_b_sec = 0
+        total_write_b_sec = 0
+        total_io = 0
+        total_swap = 0
+
+        for proc_data in procs:
+            total_mem += proc_data.get("mem", 0)
+            total_cpu += proc_data.get("cpu", 0.0)
+            total_read_b_sec += proc_data.get("io_read", 0)
+            total_write_b_sec += proc_data.get("io_write", 0)
+            total_io += proc_data.get("io", 0)
+            total_swap += proc_data.get("swap", 0)
+
+        output_data.append({
+            "name": os.path.basename(exe),
+            "key": exe,
+            "icon": procs[0]["icon"],
+            "mem": total_mem,
+            "cpu": round(total_cpu, 1),
+            "io_read": total_read_b_sec,
+            "io_write": total_write_b_sec,
+            "io": total_io,
+            "swap": total_swap,
+            "processes": procs,
+        })
+    return output_data
+
+
+def group_processes(processes: dict):
+    user_processes = {}
+    system_processes = {}
+    self_uid = os.getuid()
+    for _, proc_data in processes.items():
+        uid = proc_data["uid"]
+        exe = proc_data["exe"]
+        if uid != self_uid:
+            if exe not in system_processes:
+                system_processes[exe] = []
+            system_processes[exe].append(proc_data)
+        else:
+            if exe not in user_processes:
+                user_processes[exe] = []
+            user_processes[exe].append(proc_data)
+
+    return update_group_metrics(user_processes), update_group_metrics(system_processes)
+
 def main():
     interval = (int)(sys.argv[1]) if len(sys.argv) > 1 else 1
     skin = sys.argv[2] if len(sys.argv) > 2 else "dark"
@@ -609,9 +665,12 @@ def main():
         processes = fetch_processes(interval)
         apps = fetch_applications(processes)
         update_apps_metrics(apps)
+        user_processes, system_processes = group_processes(processes)
         output_data = {
             "processes": list(processes.values()),
-            "applications": list(apps.values())
+            "applications": list(apps.values()),
+            "user_processes": user_processes,
+            "system_processes": system_processes,
         }
         output_data["system_stats"] = get_system_stats()
         output_data["distro_info"] = get_distro_info()

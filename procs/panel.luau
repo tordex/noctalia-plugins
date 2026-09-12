@@ -11,8 +11,7 @@ local show_view_options = false
 local show_user_processes = true
 
 local view_show_apps = noctalia.getConfig("show_apps")
-local view_show_all_processes = noctalia.getConfig("show_all_processes")
-local view_group_processes = noctalia.getConfig("group_processes")
+local view_show_processes = noctalia.getConfig("show_processes")
 
 -- Forward declaration of the render function to allow it to be called from other functions.
 local render
@@ -207,36 +206,16 @@ local function render_view_options()
             paddingH = 8,
         },{
             ui.label({
-                text = noctalia.tr("settings.show_all_processes.label"),
+                text = noctalia.tr("settings.show_processes.label"),
                 color = "on_surface_variant",
                 maxLines = 1,
             }),
             ui.spacer({ flexGrow = 1 }),
             ui.toggle({
-                key = "toggle-show-all-processes",
-                checked = view_show_all_processes,
+                key = "toggle-show-processes",
+                checked = view_show_processes,
                 onChange = function(new_value)
-                    view_show_all_processes = new_value == "true"
-                    render()
-                end
-            })
-        }),
-        ui.row({
-            gap = 8,
-            radius = 16,
-            paddingH = 8,
-        },{
-            ui.label({
-                text = noctalia.tr("settings.group_processes.label"),
-                color = "on_surface_variant",
-                maxLines = 1,
-            }),
-            ui.spacer({ flexGrow = 1 }),
-            ui.toggle({
-                key = "toggle-group-processes",
-                checked = view_group_processes,
-                onChange = function(new_value)
-                    view_group_processes = new_value == "true"
+                    view_show_processes = new_value == "true"
                     render()
                 end
             })
@@ -471,24 +450,6 @@ local processes_data = {
         sort_value = function(value) return value end
     },
     {
-        data_key = "pid",
-        label = noctalia.tr("procs.process.pid.label"),
-        tip = noctalia.tr("procs.process.pid.tip"),
-        flexGrow = 2,
-        textAlign = "end",
-        process_value = function(value) return tostring(value or "") end,
-        sort_value = function(value) return value end
-    },
-    {
-        data_key = "username",
-        label = noctalia.tr("procs.process.username.label"),
-        tip = noctalia.tr("procs.process.username.tip"),
-        flexGrow = 2.0,
-        textAlign = "start",
-        process_value = function(value) return value end,
-        sort_value = function(value) return value end
-    },
-    {
         data_key = "cpu",
         label = noctalia.tr("procs.process.cpu.label"),
         tip = noctalia.tr("procs.process.cpu.tip"),
@@ -524,6 +485,24 @@ local processes_data = {
         process_value = function(value) return format_memory_size(value, true) .. "/s" end,
         sort_value = function(value) return value end
     },
+    {
+        data_key = "pid",
+        label = noctalia.tr("procs.process.pid.label"),
+        tip = noctalia.tr("procs.process.pid.tip"),
+        flexGrow = 2,
+        textAlign = "end",
+        process_value = function(value) return tostring(value or "") end,
+        sort_value = function(value) return value end
+    },
+    {
+        data_key = "username",
+        label = noctalia.tr("procs.process.username.label"),
+        tip = noctalia.tr("procs.process.username.tip"),
+        flexGrow = 2.0,
+        textAlign = "start",
+        process_value = function(value) return value end,
+        sort_value = function(value) return value end
+    },
 }
 
 local processes_data_transfer = {}
@@ -533,7 +512,7 @@ for _, column in ipairs(processes_data) do
 end
 
 
-local function get_order_by(context, is_app)
+local function get_order_by(context)
     local clear_context = context
     if context:sub(1, 1) == "-" then
         clear_context = context:sub(2)
@@ -544,11 +523,6 @@ local function get_order_by(context, is_app)
             local ret = column.data_key
             if context:sub(1, 1) == "-" then
                 ret = "-" .. column.data_key
-            end
-            if is_app and ret == "pid" then
-                ret = "-" .. "name"
-            elseif is_app and ret == "-pid" then
-                ret = "-" .. "-name"
             end
             return ret
         end
@@ -595,8 +569,8 @@ local function compare_values(a, b, reverse)
 end
 
 -- Sort the processes based on the selected column and order (ascending or descending).
-local function sort_processes(processes, is_app)
-    local order_by = get_order_by(g_order_by_context, is_app)
+local function sort_processes(processes)
+    local order_by = get_order_by(g_order_by_context)
     local reverse = true
     if order_by:sub(1, 1) == "-" then
         order_by = order_by:sub(2)
@@ -604,8 +578,8 @@ local function sort_processes(processes, is_app)
     end
 
     table.sort(processes, function(a, b)
-        local a_value = processes_data_transfer[order_by](a[order_by])
-        local b_value = processes_data_transfer[order_by](b[order_by])
+        local a_value = processes_data_transfer[order_by](a[order_by]) or processes_data_transfer["name"](a["name"])
+        local b_value = processes_data_transfer[order_by](b[order_by]) or processes_data_transfer["name"](b["name"])
         local a_value2 = processes_data_transfer["name"](a["name"])
         local b_value2 = processes_data_transfer["name"](b["name"])
 
@@ -626,17 +600,29 @@ local function sort_processes(processes, is_app)
 end
 
 local function sort_all_processes()
-    sort_processes(g_data["processes"], false)
-    sort_processes(g_data["applications"], true)
-    for _, app_data in pairs(g_data["applications"]) do
-        sort_processes(app_data["processes"], false)
+    sort_processes(g_data.processes)
+    sort_processes(g_data.applications)
+    sort_processes(g_data.user_processes)
+    sort_processes(g_data.system_processes)
+    for _, app_data in pairs(g_data.applications) do
+        sort_processes(app_data.processes)
+    end
+    for _, process in pairs(g_data.user_processes) do
+        if process.processes then
+            sort_processes(process.processes)
+        end
+    end
+    for _, process in pairs(g_data.system_processes) do
+        if process.processes then
+            sort_processes(process.processes)
+        end
     end
 end
 
 -- Render the header row for the process list, with sortable columns.
 local function render_processes_header()
     local children = {}
-    local order_by = get_order_by(g_order_by_context, false)
+    local order_by = get_order_by(g_order_by_context)
     for col_idx = 1, #processes_data do
         local column = processes_data[col_idx]
         local sort_indicator = ""
@@ -675,20 +661,20 @@ local function render_processes_header()
 end
 
 local hover_row_key = nil
-local apps_expand_state = {}
+local group_expand_state = {}
 local apps_expanded = true
 local all_processes_expanded = true
 
-local function toggle_app_expand_state(app_id)
-    if apps_expand_state[app_id] == nil then
-        apps_expand_state[app_id] = true
+local function toggle_group_expand_state(group_key)
+    if group_expand_state[group_key] == nil then
+        group_expand_state[group_key] = true
     else
-        apps_expand_state[app_id] = not apps_expand_state[app_id]
+        group_expand_state[group_key] = not group_expand_state[group_key]
     end
 end
 
-local function is_app_expanded(app_id)
-    return apps_expand_state[app_id] == true
+local function is_group_expanded(group_key)
+    return group_expand_state[group_key] == true
 end
 
 local function render_processes_type_header(is_app)
@@ -785,6 +771,18 @@ local function filter_process(process)
         return true
     end
 
+    if process.pid == nil then
+        return false
+    end
+
+    if show_user_processes and process.uid ~= g_data.system_stats.uid then
+        return false
+    end
+
+    if not show_user_processes and process.uid == g_data.system_stats.uid then
+        return false
+    end
+
     local num_text = tonumber(search_query)
     if num_text ~= nil then
         -- Search numbers in pid and ppid
@@ -812,38 +810,24 @@ local function filter_process(process)
 end
 
 -- Render the list of processes for the selected GPU, with sortable columns.
-local function render_processes(processes, is_app, level)
+local function render_processes(processes, level)
     level = level or 0
-    local key_prefix = is_app and "app-" or "all-"
+    local key_prefix = "proc-"
     local children = {}
     local rows_holders = {}
     local children_N = 0
-    local order_by = get_order_by(g_order_by_context, is_app)
+    local order_by = get_order_by(g_order_by_context)
     local default_hover_fill = noctalia.getConfig("process_hover_background") or "surface_variant"
     local default_hover_color = noctalia.getConfig("process_hover_color") or "on_surface_variant"
-    local uid = g_data.system_stats.uid
     for row_idx = 1, #processes do
         local process = processes[row_idx]
-        if not is_app then
-            if show_user_processes then
-                if process.uid ~= uid then
-                    -- Skip system processes when showing user processes
-                    continue
-                end
-            else
-                if process.uid == uid then
-                    -- Skip user processes when showing system processes
-                    continue
-                end
-            end
-        end
 
         if not filter_process(process) then
             continue
         end
 
         children_N = children_N + 1
-        local process_key = key_prefix .. "proc-row-" .. (process.pid or process.name or "")
+        local process_key = key_prefix .. "row-" .. process.key
         local is_hovered = hover_row_key == process_key
 
         if process_view_pid and process_view_pid == process.pid then
@@ -876,6 +860,14 @@ local function render_processes(processes, is_app, level)
 
 
             if col_idx == 1 then
+                local marker_glyph = nil
+                if process.processes ~= nil then
+                    if is_group_expanded(process.key) then
+                        marker_glyph = "chevron-down"
+                    else
+                        marker_glyph = "chevron-right"
+                    end
+                end
                 process_children[col_idx] = ui.column({
                     flexGrow = column.flexGrow,
                     paddingH = 8,
@@ -890,8 +882,13 @@ local function render_processes(processes, is_app, level)
                     }, {
                         ui.spacer({
                             key = process_key .. "-col-" .. tostring(col_idx) .. "-" .. tostring(level) .. "-spacer",
-                            width = 16 * level * (col_idx == 1 and 1 or 0),
+                            width = 6 * level * (col_idx == 1 and 1 or 0),
                             flexGrow = 0,
+                        }),
+                        ui.glyph({
+                            key = process_key .. "-col-" .. tostring(col_idx) .. "-" .. tostring(level) .. "-glyph",
+                            size = 12,
+                            name = marker_glyph,
                         }),
                         ui.image({
                             key = process_key .. "-col-" .. tostring(col_idx) .. "-" .. tostring(level) .. "-icon",
@@ -938,8 +935,8 @@ local function render_processes(processes, is_app, level)
                 end
             end,
             onClick = function()
-                if is_app then
-                    toggle_app_expand_state(process.app_id)
+                if process.processes ~= nil then
+                    toggle_group_expand_state(process.key)
                     reset_processes_cache()
                     render()
                 elseif process_view_pid == nil or process_view_pid ~= process.pid then
@@ -953,10 +950,10 @@ local function render_processes(processes, is_app, level)
                 end
             end
         }, process_children)
-        if is_app and is_app_expanded(process.app_id) then
-            local app_processes_children = render_processes(process.processes, false, level + 1)
-            table.move(app_processes_children, 1, #app_processes_children, children_N + 1, children)
-            children_N = children_N + #app_processes_children
+        if process.processes ~= nil and is_group_expanded(process.key) then
+            local group_processes_children = render_processes(process.processes, level + 1)
+            table.move(group_processes_children, 1, #group_processes_children, children_N + 1, children)
+            children_N = children_N + #group_processes_children
         else
             if children_N > 100 and level <= 1 then
                 rows_holders[#rows_holders + 1] = ui.column({ gap = 4 }, children)
@@ -1090,31 +1087,38 @@ local function render_processes_block()
     local rows
     local children = {}
 
-    local need_render_apps = view_show_apps and show_user_processes and search_query == ""
-    local need_render_processes = view_show_all_processes or not show_user_processes or search_query ~= ""
-
-    if need_render_apps then
-        local level = 0
-        if need_render_processes then
-            table.insert(children, render_processes_type_header(true))
-            level = 1
-        end
-        if apps_expanded or not need_render_processes then
-            rows = render_processes(g_data["applications"], true, level)
+    if search_query == "" then
+        if not show_user_processes then
+            rows = render_processes(g_data.system_processes, 0)
             table.move(rows, 1, #rows, #children + 1, children)
-        end
-    end
+        else
+            if view_show_apps then
+                local level = 0
+                if view_show_processes then
+                    table.insert(children, render_processes_type_header(true))
+                    level = 1
+                end
+                if apps_expanded or not view_show_processes then
+                    rows = render_processes(g_data.applications, level)
+                    table.move(rows, 1, #rows, #children + 1, children)
+                end
+            end
 
-    if need_render_processes then
-        local level = 0
-        if need_render_apps then
-            level = 1
-            table.insert(children, render_processes_type_header(false))
+            if view_show_processes then
+                local level = 0
+                if view_show_apps then
+                    level = 1
+                    table.insert(children, render_processes_type_header(false))
+                end
+                if all_processes_expanded or not view_show_apps then
+                    rows = render_processes(g_data.user_processes, level)
+                    table.move(rows, 1, #rows, #children + 1, children)
+                end
+            end
         end
-        if all_processes_expanded or not need_render_apps then
-            rows = render_processes(g_data["processes"], false, level)
-            table.move(rows, 1, #rows, #children + 1, children)
-        end
+    else
+        rows = render_processes(g_data.processes, 0)
+        table.move(rows, 1, #rows, #children + 1, children)
     end
 
     processes_cache = children

@@ -65,17 +65,13 @@
       "description": "Select the text color for the sort column",
       "label": "Sort column text color"
     },
-    "show_all_processes": {
-      "description": "You can toggle this option to display or hide all processes section in the panel.",
-      "label": "Show all processes"
+    "show_processes": {
+      "description": "You can toggle this option to display or hide processes section in the panel.",
+      "label": "Show processes"
     },
     "show_apps": {
       "description": "You can toggle this option to display or hide the applications section in the panel.",
       "label": "Show applications"
-    },
-    "group_processes": {
-      "description": "Group processes by executable path in All Processes section",
-      "label": "Group processes"
     }
   },
   "tip_close": "Close",
