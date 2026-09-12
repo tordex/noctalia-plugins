@@ -317,9 +317,15 @@ def get_distro_info():
         "icon_path": icon_path
     }
 
+kernel_version = None
+cpu_name = None
+board_name = None
+board_vendor = None
+g_username = None
+g_uid = None
 
 def get_system_stats():
-    global cpu_idle_time, cpu_total_time
+    global cpu_idle_time, cpu_total_time, kernel_version, cpu_name, board_name, board_vendor, g_username, g_uid
     # CPU Load
     idle_time, total_time = proc.get_cpu_times()
     idle_delta = idle_time - cpu_idle_time
@@ -359,47 +365,50 @@ def get_system_stats():
         uptime_seconds = None
 
     # Get kernel version
-    try:
-        kernel_version = os.uname().release
-    except AttributeError:
-        kernel_version = None
+    if kernel_version is None:
+        try:
+            kernel_version = os.uname().release
+        except AttributeError:
+            kernel_version = None
 
     # Get CPU name
-    cpu_name = None
-    try:
-        with open("/proc/cpuinfo", "r") as f:
-            for line in f:
-                if line.startswith("model name"):
-                    cpu_name = line.split(":", 1)[1].strip()
-                    break
-    except FileNotFoundError:
-        pass
+    global cpu_name
+    if cpu_name is None:
+        try:
+            with open("/proc/cpuinfo", "r") as f:
+                for line in f:
+                    if line.startswith("model name"):
+                        cpu_name = line.split(":", 1)[1].strip()
+                        break
+        except FileNotFoundError:
+            pass
 
     # Get board name (if available)
-    board_name = None
-    try:
-        with open("/sys/devices/virtual/dmi/id/board_name", "r") as f:
-            board_name = f.readline().strip()
-    except FileNotFoundError:
-        pass
+    if board_name is None:
+        try:
+            with open("/sys/devices/virtual/dmi/id/board_name", "r") as f:
+                board_name = f.readline().strip()
+        except FileNotFoundError:
+            pass
 
     # Get board vendor (if available)
-    board_vendor = None
-    try:
-        with open("/sys/devices/virtual/dmi/id/board_vendor", "r") as f:
-            board_vendor = f.readline().strip()
-    except FileNotFoundError:
-        pass
+    if board_vendor is None:
+        try:
+            with open("/sys/devices/virtual/dmi/id/board_vendor", "r") as f:
+                board_vendor = f.readline().strip()
+        except FileNotFoundError:
+            pass
 
     board = f"{board_vendor} {board_name}" if board_vendor and board_name else None
     if board is None and board_name is not None:
         board = board_name
 
-    uid = os.getuid()
-    try:
-        username = pwd.getpwuid(uid).pw_name
-    except KeyError:
-        username = "<unknown>"
+    if g_username is None:
+        g_uid = os.getuid()
+        try:
+            g_username = pwd.getpwuid(g_uid).pw_name
+        except KeyError:
+            g_username = "<unknown>"
 
     return {
         "cpu_percent": cpu_percent,
@@ -411,8 +420,8 @@ def get_system_stats():
         "kernel_version": kernel_version,
         "cpu_name": cpu_name,
         "board": board,
-        "uid": uid,
-        "username": username,
+        "uid": g_uid,
+        "username": g_username,
     }
 
 
@@ -568,9 +577,12 @@ def fill_app_processes(pid: int, app_procs: dict, processes: dict):
             fill_app_processes(proc_pid, app_procs, processes)
 
 
-def fetch_applications(processes: dict):
-    p = subprocess.run(["niri", "msg", "--json", "windows"], capture_output=True)
-    if p.returncode != 0:
+def fetch_niri_applications(processes: dict):
+    try:
+        p = subprocess.run(["niri", "msg", "--json", "windows"], capture_output=True)
+        if p.returncode != 0:
+            return []
+    except FileNotFoundError:
         return []
 
     try:
@@ -578,9 +590,82 @@ def fetch_applications(processes: dict):
     except json.JSONDecodeError:
         return []
 
-    ret = {}
+    windows = []
     for window in niri_windows:
         app_id = window.get("app_id") or window.get("title") or "Unknown"
+        windows.append({
+            "app_id": app_id,
+            "pid": window["pid"]
+        })
+
+    return windows
+
+
+def fetch_umbriel_applications(processes: dict):
+    try:
+        p = subprocess.run(["umbriel", "windows", "--json"], capture_output=True)
+        if p.returncode != 0:
+            return []
+    except FileNotFoundError:
+        return []
+
+    try:
+        umbriel_windows = json.loads(p.stdout.decode())
+    except json.JSONDecodeError:
+        return []
+
+    windows = []
+    for window in umbriel_windows:
+        app_id = window.get("app_id") or window.get("title") or "Unknown"
+        windows.append({
+            "app_id": app_id,
+            "pid": window["pid"]
+        })
+
+    return windows
+
+def fetch_hyprland_applications(processes: dict):
+    try:
+        p = subprocess.run(["hyprctl", "clients", "-j"], capture_output=True)
+        if p.returncode != 0:
+            return []
+    except FileNotFoundError:
+        return []
+
+    try:
+        hyprland_windows = json.loads(p.stdout.decode())
+    except json.JSONDecodeError:
+        return []
+
+    windows = []
+    for window in hyprland_windows:
+        app_id = window.get("class") or window.get("title") or "Unknown"
+        windows.append({
+            "app_id": app_id,
+            "pid": window["pid"]
+        })
+
+    return windows
+
+
+def fetch_applications(processes: dict):
+    xdg_current_desktop = os.environ.get("XDG_CURRENT_DESKTOP")
+    xdg_current_desktop = xdg_current_desktop.lower().split(':')
+
+    windows = []
+    if "niri" in xdg_current_desktop:
+        windows = fetch_niri_applications(processes)
+    elif "umbriel" in xdg_current_desktop:
+        windows = fetch_umbriel_applications(processes)
+    elif "hyprland" in xdg_current_desktop:
+        windows = fetch_hyprland_applications(processes)
+
+    if len(windows) == 0:
+        return {}
+
+    ret = {}
+    for window in windows:
+        app_id = window["app_id"]
         if app_id not in ret:
             app_name, app_icon = get_app_name(app_id)
             ret[app_id] = {
@@ -595,6 +680,7 @@ def fetch_applications(processes: dict):
         app_data["processes"] = list(app_data["processes"].values())
 
     return ret
+
 
 def update_apps_metrics(apps: dict):
     for _, app_data in apps.items():

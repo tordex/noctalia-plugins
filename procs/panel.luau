@@ -162,7 +162,10 @@ local function render_system_info()
         local uptime_days = math.floor(uptime_seconds / (24 * 3600))
         local uptime_hours = math.floor((uptime_seconds % (24 * 3600)) / 3600)
         local uptime_minutes = math.floor((uptime_seconds % 3600) / 60)
-        local uptime_str = string.format("%dd %dh %dm", uptime_days, uptime_hours, uptime_minutes)
+        local uptime_str = string.format("%d %s %d %s %d %s",
+                uptime_days, noctalia.trp("days", uptime_days),
+                uptime_hours, noctalia.trp("hours", uptime_hours),
+                uptime_minutes, noctalia.trp("minutes", uptime_minutes))
 
         table.insert(children, render_system_info_row("clock", uptime_str))
     end
@@ -175,53 +178,55 @@ end
 
 local function render_view_options()
 
-    return ui.column({
-        key = "view-options-column",
-        gap = 8,
-        flexGrow = 1,
-    },{
-        ui.row({
+    return ui.row({ flexGrow = 1 }, {
+        ui.column({
+            key = "view-options-column",
             gap = 8,
-            radius = 16,
-            paddingH = 8,
         },{
-            ui.label({
-                text = noctalia.tr("settings.show_apps.label"),
-                color = "on_surface_variant",
-                maxLines = 1,
+            ui.row({
+                gap = 8,
+                radius = 16,
+                paddingH = 8,
+            },{
+                ui.label({
+                    text = noctalia.tr("settings.show_apps.label"),
+                    color = "on_surface_variant",
+                    maxLines = 1,
+                }),
+                ui.spacer({ flexGrow = 1 }),
+                ui.toggle({
+                    key = "toggle-show-apps",
+                    checked = view_show_apps,
+                    onChange = function(new_value)
+                        view_show_apps = new_value == "true"
+                        reset_processes_cache()
+                        render()
+                    end
+                })
             }),
-            ui.spacer({ flexGrow = 1 }),
-            ui.toggle({
-                key = "toggle-show-apps",
-                checked = view_show_apps,
-                onChange = function(new_value)
-                    view_show_apps = new_value == "true"
-                    render()
-                end
-            })
-        }),
-        ui.row({
-            gap = 8,
-            radius = 16,
-            paddingH = 8,
-        },{
-            ui.label({
-                text = noctalia.tr("settings.show_processes.label"),
-                color = "on_surface_variant",
-                maxLines = 1,
+            ui.row({
+                gap = 8,
+                radius = 16,
+                paddingH = 8,
+            },{
+                ui.label({
+                    text = noctalia.tr("settings.show_processes.label"),
+                    color = "on_surface_variant",
+                    maxLines = 1,
+                }),
+                ui.spacer({ flexGrow = 1 }),
+                ui.toggle({
+                    key = "toggle-show-processes",
+                    checked = view_show_processes,
+                    onChange = function(new_value)
+                        view_show_processes = new_value == "true"
+                        reset_processes_cache()
+                        render()
+                    end
+                })
             }),
-            ui.spacer({ flexGrow = 1 }),
-            ui.toggle({
-                key = "toggle-show-processes",
-                checked = view_show_processes,
-                onChange = function(new_value)
-                    view_show_processes = new_value == "true"
-                    render()
-                end
-            })
-        }),
+        })
     })
-
 end
 
 local function render_process_view_label(text)
@@ -600,6 +605,9 @@ local function sort_processes(processes)
 end
 
 local function sort_all_processes()
+    if g_data == nil then
+        return
+    end
     sort_processes(g_data.processes)
     sort_processes(g_data.applications)
     sort_processes(g_data.user_processes)
@@ -883,7 +891,7 @@ local function render_processes(processes, level, holder)
                     }, {
                         ui.spacer({
                             key = process_key .. "-col-" .. tostring(col_idx) .. "-" .. tostring(level) .. "-spacer",
-                            width = 4 * level * (col_idx == 1 and 1 or 0),
+                            width = 8 * level * (col_idx == 1 and 1 or 0),
                             flexGrow = 0,
                         }),
                         ui.glyph({
@@ -1093,7 +1101,12 @@ local function render_processes_block()
             rows = render_processes(g_data.system_processes, 0, true)
             table.move(rows, 1, #rows, #children + 1, children)
         else
-            if view_show_apps then
+            local have_apps = view_show_apps
+            if #g_data.applications == 0 then
+                have_apps = false
+            end
+
+            if have_apps then
                 local level = 0
                 if view_show_processes then
                     table.insert(children, render_processes_type_header(true))
@@ -1107,11 +1120,11 @@ local function render_processes_block()
 
             if view_show_processes then
                 local level = 0
-                if view_show_apps then
+                if have_apps then
                     level = 1
                     table.insert(children, render_processes_type_header(false))
                 end
-                if all_processes_expanded or not view_show_apps then
+                if all_processes_expanded or not have_apps then
                     rows = render_processes(g_data.user_processes, level, true)
                     table.move(rows, 1, #rows, #children + 1, children)
                 end

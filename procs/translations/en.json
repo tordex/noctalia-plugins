@@ -83,5 +83,17 @@
   "user_processes_tip": "Show only user processes",
   "system_processes_label": "System",
   "system_processes_tip": "Show only system processes",
-  "search_placeholder": "type to search"
+  "search_placeholder": "type to search",
+  "days": {
+    "one": "day",
+    "other": "days"
+  },
+  "hours": {
+    "one": "hour",
+    "other": "hours"
+  },
+  "minutes": {
+    "one": "minute",
+    "other": "minutes"
+  }
 }
