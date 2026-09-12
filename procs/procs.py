@@ -514,30 +514,47 @@ def fetch_processes(interval: float):
 
 app_name_cache = {}
 
-def get_app_name(app_id: str):
+def get_app_icon(app_info, app_id, icon_size: int = 24):
+    icon = app_info.get_icon()
+    icon_name = icon.to_string() if icon else app_id
+    return icon_path(icon_name, icon_size)
+
+def get_app_name(app_id: str, icon_size: int = 24):
     if app_id in app_name_cache:
-        return app_name_cache[app_id]
+        return app_name_cache[app_id]["name"], app_name_cache[app_id]["icon"]
 
     desktop_file = f"{app_id}.desktop" if not app_id.endswith(".desktop") else app_id
 
     try:
         app_info = GioUnix.DesktopAppInfo.new(desktop_file)
     except TypeError:
-        app_name_cache[app_id] = app_id
-        return app_id
+        app_name_cache[app_id] = {
+            "name": app_id,
+            "icon": icon_path(app_id, icon_size)
+        }
+        return app_name_cache[app_id]["name"], app_name_cache[app_id]["icon"]
 
     if app_info:
-        app_name_cache[app_id] = app_info.get_name()
-        return app_name_cache[app_id]
+        app_name_cache[app_id] = {
+            "name": app_info.get_name(),
+            "icon": get_app_icon(app_info, app_id, icon_size)
+        }
+        return app_name_cache[app_id]["name"], app_name_cache[app_id]["icon"]
     else:
         for app in Gio.AppInfo.get_all():
             if isinstance(app, GioUnix.DesktopAppInfo):
                 wm_class = app.get_startup_wm_class()
                 if wm_class and wm_class.lower() == app_id.lower():
-                    app_name_cache[app_id] = app.get_name()
-                    return app_name_cache[app_id]
-    app_name_cache[app_id] = app_id
-    return app_name_cache[app_id]
+                    app_name_cache[app_id] = {
+                        "name": app.get_name(),
+                        "icon": get_app_icon(app, app_id, icon_size)
+                    }
+                    return app_name_cache[app_id]["name"], app_name_cache[app_id]["icon"]
+    app_name_cache[app_id] = {
+        "name": app_id,
+        "icon": icon_path(app_id, icon_size)
+    }
+    return app_name_cache[app_id]["name"], app_name_cache[app_id]["icon"]
 
 
 def fill_app_processes(pid: int, app_procs: dict, processes: dict):
@@ -565,10 +582,11 @@ def fetch_applications(processes: dict):
     for window in niri_windows:
         app_id = window.get("app_id") or window.get("title") or "Unknown"
         if app_id not in ret:
+            app_name, app_icon = get_app_name(app_id)
             ret[app_id] = {
-                "name": get_app_name(app_id),
+                "name": app_name,
                 "key": app_id,
-                "icon": icon_path(app_id, 24),
+                "icon": app_icon,
                 "processes": {}
             }
         fill_app_processes(window["pid"], ret[app_id]["processes"], processes)

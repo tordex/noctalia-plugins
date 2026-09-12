@@ -871,7 +871,7 @@ local function render_processes(processes, level, holder)
                 end
                 process_children[col_idx] = ui.column({
                     flexGrow = column.flexGrow,
-                    paddingH = 8,
+                    paddingH = 2,
                     paddingV = 1,
                     fill = fill,
                     radius = 16,
@@ -883,7 +883,7 @@ local function render_processes(processes, level, holder)
                     }, {
                         ui.spacer({
                             key = process_key .. "-col-" .. tostring(col_idx) .. "-" .. tostring(level) .. "-spacer",
-                            width = 6 * level * (col_idx == 1 and 1 or 0),
+                            width = 4 * level * (col_idx == 1 and 1 or 0),
                             flexGrow = 0,
                         }),
                         ui.glyph({
