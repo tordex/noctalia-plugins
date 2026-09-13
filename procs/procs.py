@@ -647,6 +647,29 @@ def fetch_hyprland_applications(processes: dict):
 
     return windows
 
+def fetch_sway_applications(processes: dict):
+    try:
+        p = subprocess.run("swaymsg -t get_tree | jq '[.. | select(.pid? and .name?) | {app_id: (.app_id // .window_properties.class), pid: .pid}]'", capture_output=True, shell=True)
+        if p.returncode != 0:
+            return []
+    except FileNotFoundError:
+        return []
+
+    try:
+        sway_windows = json.loads(p.stdout.decode())
+    except json.JSONDecodeError:
+        return []
+
+    windows = []
+    for window in sway_windows:
+        app_id = window.get("app_id") or "Unknown"
+        windows.append({
+            "app_id": app_id,
+            "pid": window["pid"]
+        })
+
+    return windows
+
 
 def fetch_applications(processes: dict):
     xdg_current_desktop = os.environ.get("XDG_CURRENT_DESKTOP")
@@ -659,6 +682,8 @@ def fetch_applications(processes: dict):
         windows = fetch_umbriel_applications(processes)
     elif "hyprland" in xdg_current_desktop:
         windows = fetch_hyprland_applications(processes)
+    elif "sway" in xdg_current_desktop:
+        windows = fetch_sway_applications(processes)
 
     if len(windows) == 0:
         return {}
