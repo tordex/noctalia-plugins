@@ -1,4 +1,4 @@
-id = "tordex/procs"
+id = "tordex/processes"
 name = "Processes"
 version = "1.0.0"
 plugin_api = 24

@@ -1189,7 +1189,7 @@ local function run_processes_stream()
     else
         theme = "light"
     end
-    local cmd = "python " .. plugin_dir .. "/procs.py " .. tostring(noctalia.getConfig("delay")) .. " " .. theme
+    local cmd = "python " .. plugin_dir .. "/scripts/stats.py " .. tostring(noctalia.getConfig("delay")) .. " " .. theme
     noctalia.runStream(cmd,
         function(line)
             if line:find("tordex/procs:pid:") then
@@ -1223,7 +1223,6 @@ end
 
 -- Handle the panel opening event, and check for a context key to sort the process list by.
 function onOpen(context)
-    noctalia.log("[procs] Panel opened with context: " .. tostring(context))
     if context ~= nil and context ~= "" then
         g_order_by_context = context:lower()
         sort_all_processes()
