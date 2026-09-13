@@ -769,6 +769,7 @@ def update_apps_metrics(apps: dict):
         total_write_b_sec = 0
         total_io = 0
         total_swap = 0
+        username = None
 
         for proc_data in app_data["processes"]:
             total_mem += proc_data.get("mem", 0)
@@ -777,6 +778,14 @@ def update_apps_metrics(apps: dict):
             total_write_b_sec += proc_data.get("io_write", 0)
             total_io += proc_data.get("io", 0)
             total_swap += proc_data.get("swap", 0)
+            if username is None:
+                username = proc_data.get("username")
+            else:
+                if username != proc_data.get("username"):
+                    username = ""
+
+        if username == "":
+            username = None
 
         app_data["mem"] = total_mem
         app_data["cpu"] = round(total_cpu, 1)
@@ -784,6 +793,7 @@ def update_apps_metrics(apps: dict):
         app_data["io_write"] = total_write_b_sec
         app_data["io"] = total_io
         app_data["swap"] = total_swap
+        app_data["username"] = username
 
 
 def update_group_metrics(grouped_processes: dict):
@@ -798,6 +808,7 @@ def update_group_metrics(grouped_processes: dict):
         total_write_b_sec = 0
         total_io = 0
         total_swap = 0
+        username = None
 
         for proc_data in procs:
             total_mem += proc_data.get("mem", 0)
@@ -806,6 +817,14 @@ def update_group_metrics(grouped_processes: dict):
             total_write_b_sec += proc_data.get("io_write", 0)
             total_io += proc_data.get("io", 0)
             total_swap += proc_data.get("swap", 0)
+            if username is None:
+                username = proc_data.get("username")
+            else:
+                if username != proc_data.get("username"):
+                    username = ""
+
+        if username == "":
+            username = None
 
         output_data.append({
             "name": os.path.basename(exe),
@@ -817,6 +836,7 @@ def update_group_metrics(grouped_processes: dict):
             "io_write": total_write_b_sec,
             "io": total_io,
             "swap": total_swap,
+            "username": username,
             "processes": procs,
         })
     return output_data
