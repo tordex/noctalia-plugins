@@ -1,4 +1,16 @@
 {
+  "days": {
+    "one": "day",
+    "other": "days"
+  },
+  "hours": {
+    "one": "hour",
+    "other": "hours"
+  },
+  "minutes": {
+    "one": "minute",
+    "other": "minutes"
+  },
   "procs": {
     "applications_header": "Applications",
     "copied_to_clipboard": "Copied to clipboard",
@@ -12,10 +24,6 @@
       "disk": {
         "label": "DISK",
         "tip": "Disk I/O Usage"
-      },
-      "username": {
-        "label": "USER",
-        "tip": "Process Owner"
       },
       "mem": {
         "label": "MEM",
@@ -32,6 +40,10 @@
       "swap": {
         "label": "SWAP",
         "tip": "Swap Usage"
+      },
+      "username": {
+        "label": "USER",
+        "tip": "Process Owner"
       }
     },
     "process_buttons": {
@@ -44,6 +56,7 @@
       "unknown": "Linux"
     }
   },
+  "search_placeholder": "type to search",
   "settings": {
     "delay": {
       "description": "Select the refresh rate (seconds)",
@@ -57,6 +70,14 @@
       "description": "Select the text color for hovered process rows",
       "label": "Process hover text color"
     },
+    "show_apps": {
+      "description": "You can toggle this option to display or hide the applications section in the panel.",
+      "label": "Show applications"
+    },
+    "show_processes": {
+      "description": "You can toggle this option to display or hide processes section in the panel.",
+      "label": "Show processes"
+    },
     "sort_column_background": {
       "description": "Select the background color for the sort column",
       "label": "Sort column background"
@@ -64,36 +85,15 @@
     "sort_column_color": {
       "description": "Select the text color for the sort column",
       "label": "Sort column text color"
-    },
-    "show_processes": {
-      "description": "You can toggle this option to display or hide processes section in the panel.",
-      "label": "Show processes"
-    },
-    "show_apps": {
-      "description": "You can toggle this option to display or hide the applications section in the panel.",
-      "label": "Show applications"
     }
   },
+  "system_processes_label": "System",
+  "system_processes_tip": "Show only system processes",
+  "tip_clear_search": "Clear search text",
   "tip_close": "Close",
   "tip_options": "View options",
   "tip_settings": "Plugin settings",
-  "tip_clear_search": "Clear search text",
   "title": "Processes",
   "user_processes_label": "User",
-  "user_processes_tip": "Show only user processes",
-  "system_processes_label": "System",
-  "system_processes_tip": "Show only system processes",
-  "search_placeholder": "type to search",
-  "days": {
-    "one": "day",
-    "other": "days"
-  },
-  "hours": {
-    "one": "hour",
-    "other": "hours"
-  },
-  "minutes": {
-    "one": "minute",
-    "other": "minutes"
-  }
+  "user_processes_tip": "Show only user processes"
 }
