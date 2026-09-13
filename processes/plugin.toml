@@ -4,10 +4,10 @@ version = "1.0.0"
 plugin_api = 24
 author = "tordex"
 license = "MIT"
-dependencies = ["python", "niri"]
+dependencies = ["python", "kill", "pkill"]
 tags = ["panel", "service", "system"]
 icon = "device-desktop-analytics"
-description = "Monitor processes CPU, Memory, Disk Read and Disk Write metrics"
+description = "Monitor processes CPU, Memory, Disk read/write metrics"
 
 [[setting]]
 key = "delay"
