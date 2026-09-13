@@ -2,28 +2,58 @@
 
 -- Data from the nvtop command, which is updated in real-time.
 local g_data = nil
--- The PID of the nvtop process, which is used to terminate the process when the panel is closed.
-local procs_pid = -1
 
+-- The PID of the stats.py process, which is used to terminate the process when the panel is closed.
+local g_procs_pid = -1
+
+-- Context for ordering processes in the panel.
 local g_order_by_context = "mem"
 
-local show_view_options = false
-local show_user_processes = true
+-- Whether to show view options in the panel.
+local g_show_view_options = false
 
+-- Whether to show user processes in the panel.
+local g_show_user_processes = true
+
+-- Show applications in the processes list
 local view_show_apps = noctalia.getConfig("show_apps")
+
+-- Show processes in the processes list
 local view_show_processes = noctalia.getConfig("show_processes")
 
 -- Forward declaration of the render function to allow it to be called from other functions.
 local render
-local data_load_ms = "none"
-local processes_cache = nil
-local process_view_data = nil
-local process_view_pid = nil
-local search_query = ""
-local search_query_ctl = 0
 
+-- Data load time in milliseconds. Used as part of key for gauge images controls.
+local g_data_load_ms = "none"
+
+-- Cache for processes UI tree to improve performance.
+local g_processes_cache = nil
+
+-- The PID of the process currently being viewed in the info block.
+-- This var set on process row click
+local g_process_view_pid = nil
+
+-- The data of the process currently being viewed in the info block.
+-- This var set on process row click
+local g_process_view_data = nil
+
+-- The text of search query
+local g_search_query = ""
+
+-- The part of search input control key. Used to set focus to the input when required.
+local g_search_query_ctl_key = 0
+
+-- The key of the info row currently being hovered. Used to change the row's appearance on hover.
+local g_info_row_hover_key = ""
+
+-- The key of the value currently being hovered in the process view. Used to change the appearance of the value on hover.
+local g_process_view_hover_key = nil
+
+
+-- Reset the processes cache. This is useful when the underlying data changes and the UI needs to be refreshed.
 local function reset_processes_cache()
-    processes_cache = nil
+    g_processes_cache = nil
 end
 
 -- Helper function to check if a string starts with a given prefix.
@@ -82,14 +112,13 @@ local function render_no_data_message()
     return false
 end
 
-local info_row_hover_key = ""
-
+-- Render a single row of system information with a glyph and text.
 local function render_system_info_row(glyph, text)
     local row_key = "info-row-" .. glyph
 
     local fill = "on_surface_variant/0.0"
     local color = "on_surface_variant"
-    if row_key == info_row_hover_key then
+    if row_key == g_info_row_hover_key then
         color = "on_hover"
         fill = "hover"
     end
@@ -109,13 +138,13 @@ local function render_system_info_row(glyph, text)
             end
         end,
         onHover = function(state, key)
-            local old_state = info_row_hover_key
+            local old_state = g_info_row_hover_key
             if state == "true" then
-                info_row_hover_key = key
+                g_info_row_hover_key = key
             else
-                info_row_hover_key = ""
+                g_info_row_hover_key = ""
             end
-            if old_state ~= info_row_hover_key then
+            if old_state ~= g_info_row_hover_key then
                 render()
             end
         end,
@@ -136,6 +165,7 @@ local function render_system_info_row(glyph, text)
     })
 end
 
+-- Render the system information section.
 local function render_system_info()
     local children = {}
 
@@ -176,6 +206,7 @@ local function render_system_info()
     }, children)
 end
 
+-- Render the view options section.
 local function render_view_options()
 
     return ui.row({ flexGrow = 1 }, {
@@ -229,6 +260,7 @@ local function render_view_options()
     })
 end
 
+-- Render a label for a process view row.
 local function render_process_view_label(text)
     return ui.label({
         text = text,
@@ -238,8 +270,7 @@ local function render_process_view_label(text)
     })
 end
 
-local process_view_hover_key = nil
-
+-- Render a value for a process view row, with optional hover and click behavior.
 local function render_process_view_value(text, align, hover_key)
     local ret = ui.label({
         text = text,
@@ -256,13 +287,13 @@ local function render_process_view_value(text, align, hover_key)
         }, {ret})
         new_ret.props.key = hover_key
         new_ret.props.onHover = function(state, key)
-            local old_state = process_view_hover_key
+            local old_state = g_process_view_hover_key
             if state == "true" then
-                process_view_hover_key = hover_key
+                g_process_view_hover_key = hover_key
             else
-                process_view_hover_key = nil
+                g_process_view_hover_key = nil
             end
-            if old_state ~= process_view_hover_key then
+            if old_state ~= g_process_view_hover_key then
                 render()
             end
         end
@@ -270,7 +301,7 @@ local function render_process_view_value(text, align, hover_key)
             noctalia.copyToClipboard(text, "text/plain")
             noctalia.notify(noctalia.tr("procs.copied_to_clipboard"), text)
         end
-        if process_view_hover_key == hover_key then
+        if g_process_view_hover_key == hover_key then
             ret.props.color = "on_hover"
             new_ret.props.fill = "hover"
         else
@@ -284,7 +315,7 @@ end
 
 -- Implementation for rendering the detailed view of a single process.
 local function render_process_view()
-    if process_view_data == nil then
+    if g_process_view_data == nil then
         return
     end
 
@@ -300,11 +331,11 @@ local function render_process_view()
                 glyph = "square-x",
                 controlSize = "sm",
                 variant = "destructive",
-                enabled = process_view_data.uid == g_data.system_stats.uid,
+                enabled = g_process_view_data.uid == g_data.system_stats.uid,
                 onClick = function()
-                    noctalia.runAsync({"kill", tostring(process_view_pid)})
-                    process_view_data = nil
-                    process_view_pid = nil
+                    noctalia.runAsync({"kill", tostring(g_process_view_pid)})
+                    g_process_view_data = nil
+                    g_process_view_pid = nil
                     render()
                 end
             }),
@@ -314,11 +345,11 @@ local function render_process_view()
                 glyph = "skull",
                 controlSize = "sm",
                 variant = "destructive",
-                enabled = process_view_data.uid == g_data.system_stats.uid,
+                enabled = g_process_view_data.uid == g_data.system_stats.uid,
                 onClick = function()
-                    noctalia.runAsync({"kill", "-9", tostring(process_view_pid)})
-                    process_view_data = nil
-                    process_view_pid = nil
+                    noctalia.runAsync({"kill", "-9", tostring(g_process_view_pid)})
+                    g_process_view_data = nil
+                    g_process_view_pid = nil
                     render()
                 end
             }),
@@ -330,8 +361,8 @@ local function render_process_view()
                 controlSize = "sm",
                 variant = "primary",
                 onClick = function()
-                    process_view_data = nil
-                    process_view_pid = nil
+                    g_process_view_data = nil
+                    g_process_view_pid = nil
                     render()
                 end
             }),
@@ -353,12 +384,12 @@ local function render_process_view()
     table.insert(children, ui.column({
         flexGrow = 4,
     }, {
-        render_process_view_value(process_view_data.comm, "start", "process_view_comm"),
-        render_process_view_value(tostring(process_view_data.pid), "start", "process_view_pid"),
-        render_process_view_value(tostring(process_view_data.ppid), "start", "process_view_ppid"),
-        render_process_view_value(process_view_data.exe, "start", "process_view_exe"),
-        render_process_view_value(table.concat(process_view_data.cmdline, " "), "start", "process_view_cmdline"),
-        render_process_view_value(tostring(process_view_data.cpu) .. "%", "start"),
+        render_process_view_value(g_process_view_data.comm, "start", "process_view_comm"),
+        render_process_view_value(tostring(g_process_view_data.pid), "start", "process_view_pid"),
+        render_process_view_value(tostring(g_process_view_data.ppid), "start", "process_view_ppid"),
+        render_process_view_value(g_process_view_data.exe, "start", "process_view_exe"),
+        render_process_view_value(table.concat(g_process_view_data.cmdline, " "), "start", "process_view_cmdline"),
+        render_process_view_value(tostring(g_process_view_data.cpu) .. "%", "start"),
     }))
 
     table.insert(children, ui.separator({ orientation = "auto", color = "on_surface_variant" }))
@@ -376,12 +407,12 @@ local function render_process_view()
     table.insert(children, ui.column({
         flexGrow = 1,
     }, {
-        render_process_view_value(format_memory_size(process_view_data.private), "end"),
-        render_process_view_value(format_memory_size(process_view_data.shared), "end"),
-        render_process_view_value(format_memory_size(process_view_data.mem), "end"),
-        render_process_view_value(format_memory_size(process_view_data.swap), "end"),
-        render_process_view_value(format_memory_size(process_view_data.io_read, true) .. "/s", "end"),
-        render_process_view_value(format_memory_size(process_view_data.io_write, true) .. "/s", "end"),
+        render_process_view_value(format_memory_size(g_process_view_data.private), "end"),
+        render_process_view_value(format_memory_size(g_process_view_data.shared), "end"),
+        render_process_view_value(format_memory_size(g_process_view_data.mem), "end"),
+        render_process_view_value(format_memory_size(g_process_view_data.swap), "end"),
+        render_process_view_value(format_memory_size(g_process_view_data.io_read, true) .. "/s", "end"),
+        render_process_view_value(format_memory_size(g_process_view_data.io_write, true) .. "/s", "end"),
     }))
 
     table.insert(children, ui.separator({ orientation = "auto", color = "on_surface_variant" }))
@@ -393,7 +424,7 @@ end
 local function render_info()
     local children = {}
 
-    if process_view_data ~= nil then
+    if g_process_view_data ~= nil then
         children = render_process_view()
     else
         if g_data.distro_info.icon_path ~= nil then
@@ -405,7 +436,7 @@ local function render_info()
             }))
         end
 
-        if show_view_options then
+        if g_show_view_options then
             table.insert(children, render_view_options())
         else
             table.insert(children, render_system_info())
@@ -416,7 +447,7 @@ local function render_info()
         local system_stats = g_data["system_stats"]
         if system_stats["cpu_graph_path"] ~= nil and noctalia.fileExists(system_stats["cpu_graph_path"]) then
             table.insert(children, ui.image({
-                key = "img-cpu-" .. data_load_ms,
+                key = "img-cpu-" .. g_data_load_ms,
                 path = system_stats["cpu_graph_path"],
                 width = 110,
                 height = 110,
@@ -424,7 +455,7 @@ local function render_info()
         end
         if system_stats["mem_graph_path"] ~= nil and noctalia.fileExists(system_stats["mem_graph_path"]) then
             table.insert(children, ui.image({
-                key = "img-mem-" .. data_load_ms,
+                key = "img-mem-" .. g_data_load_ms,
                 path = system_stats["mem_graph_path"],
                 width = 110,
                 height = 110,
@@ -444,7 +475,7 @@ local function render_info()
 end
 
 -- Define the process data columns to display in the panel.
-local processes_data = {
+local g_processes_data = {
     {
         data_key = "name",
         label = noctalia.tr("procs.process.name.label"),
@@ -510,20 +541,20 @@ local processes_data = {
     },
 }
 
-local processes_data_transfer = {}
+local g_processes_data_transfer = {}
 
-for _, column in ipairs(processes_data) do
-    processes_data_transfer[column.data_key] = column.sort_value
+for _, column in ipairs(g_processes_data) do
+    g_processes_data_transfer[column.data_key] = column.sort_value
 end
 
-
+-- Converts context value to a valid order_by key, handling the "-" prefix for descending order.
 local function get_order_by(context)
     local clear_context = context
     if context:sub(1, 1) == "-" then
         clear_context = context:sub(2)
     end
-    for col_idx = 1, #processes_data do
-        local column = processes_data[col_idx]
+    for col_idx = 1, #g_processes_data do
+        local column = g_processes_data[col_idx]
         if column.data_key == clear_context then
             local ret = column.data_key
             if context:sub(1, 1) == "-" then
@@ -583,10 +614,10 @@ local function sort_processes(processes)
     end
 
     table.sort(processes, function(a, b)
-        local a_value = processes_data_transfer[order_by](a[order_by]) or processes_data_transfer["name"](a["name"])
-        local b_value = processes_data_transfer[order_by](b[order_by]) or processes_data_transfer["name"](b["name"])
-        local a_value2 = processes_data_transfer["name"](a["name"])
-        local b_value2 = processes_data_transfer["name"](b["name"])
+        local a_value = g_processes_data_transfer[order_by](a[order_by]) or g_processes_data_transfer["name"](a["name"])
+        local b_value = g_processes_data_transfer[order_by](b[order_by]) or g_processes_data_transfer["name"](b["name"])
+        local a_value2 = g_processes_data_transfer["name"](a["name"])
+        local b_value2 = g_processes_data_transfer["name"](b["name"])
 
         if a_value == nil and b_value == nil then
             return false
@@ -604,6 +635,7 @@ local function sort_processes(processes)
     end)
 end
 
+-- Sort all processes in the data, including applications, user processes, and system processes.
 local function sort_all_processes()
     if g_data == nil then
         return
@@ -631,8 +663,8 @@ end
 local function render_processes_header()
     local children = {}
     local order_by = get_order_by(g_order_by_context)
-    for col_idx = 1, #processes_data do
-        local column = processes_data[col_idx]
+    for col_idx = 1, #g_processes_data do
+        local column = g_processes_data[col_idx]
         local sort_indicator = ""
         if order_by == column.data_key then
             sort_indicator = "▼ "
@@ -668,30 +700,38 @@ local function render_processes_header()
     }, children)
 end
 
-local hover_row_key = nil
-local group_expand_state = {}
-local apps_expanded = true
-local all_processes_expanded = true
+-- Track the hover state for process rows.
+local g_hover_row_key = nil
+
+-- Track the expand/collapse state for process groups.
+local g_group_expand_state = {}
+
+-- Track the expand/collapse state for the applications section.
+local g_apps_expanded = true
+
+-- Track the expand/collapse state for the all processes section.
+local g_all_processes_expanded = true
 
 local function toggle_group_expand_state(group_key)
-    if group_expand_state[group_key] == nil then
-        group_expand_state[group_key] = true
+    if g_group_expand_state[group_key] == nil then
+        g_group_expand_state[group_key] = true
     else
-        group_expand_state[group_key] = not group_expand_state[group_key]
+        g_group_expand_state[group_key] = not g_group_expand_state[group_key]
     end
 end
 
 local function is_group_expanded(group_key)
-    return group_expand_state[group_key] == true
+    return g_group_expand_state[group_key] == true
 end
 
+-- Render the header row for a specific type of processes (applications or all processes).
 local function render_processes_type_header(is_app)
     local children = {}
     local expanded
     if is_app then
-        expanded = apps_expanded
+        expanded = g_apps_expanded
     else
-        expanded = all_processes_expanded
+        expanded = g_all_processes_expanded
     end
 
     local header_text = ""
@@ -731,9 +771,9 @@ local function render_processes_type_header(is_app)
             radius = 2,
             onClick = function()
                 if is_app then
-                    apps_expanded = not apps_expanded
+                    g_apps_expanded = not g_apps_expanded
                 else
-                    all_processes_expanded = not all_processes_expanded
+                    g_all_processes_expanded = not g_all_processes_expanded
                 end
                 reset_processes_cache()
                 render()
@@ -741,17 +781,17 @@ local function render_processes_type_header(is_app)
         }, children)
 end
 
-
+-- Update the processes list in cache based on hover state.
 local function update_processes_hover_cache(default_hover_fill, default_hover_color)
-    if processes_cache == nil then
+    if g_processes_cache == nil then
         return
     end
-    for idx = 1, #processes_cache do
-        local rows = processes_cache[idx].children
+    for idx = 1, #g_processes_cache do
+        local rows = g_processes_cache[idx].children
         for rows_idx = 1, #rows do
             local process_row = rows[rows_idx]
             if process_row.type == "row" then
-                if hover_row_key == process_row.props.key then
+                if g_hover_row_key == process_row.props.key then
                     process_row.props.fill = default_hover_fill
                     process_row.props.borderWidth = 1
                 else
@@ -761,7 +801,7 @@ local function update_processes_hover_cache(default_hover_fill, default_hover_co
                 for child_idx = 1, #process_row.children do
                     local label = process_row.children[child_idx].label
                     if label ~= nil then
-                        if hover_row_key == process_row.props.key then
+                        if g_hover_row_key == process_row.props.key then
                             label.props.color = default_hover_color
                         else
                             label.props.color = "on_surface"
@@ -775,7 +815,7 @@ end
 
 -- Filter process. Returns true to show process and false to hide process
 local function filter_process(process)
-    if search_query == "" then
+    if g_search_query == "" then
         return true
     end
 
@@ -783,15 +823,15 @@ local function filter_process(process)
         return false
     end
 
-    if show_user_processes and process.uid ~= g_data.system_stats.uid then
+    if g_show_user_processes and process.uid ~= g_data.system_stats.uid then
         return false
     end
 
-    if not show_user_processes and process.uid == g_data.system_stats.uid then
+    if not g_show_user_processes and process.uid == g_data.system_stats.uid then
         return false
     end
 
-    local num_text = tonumber(search_query)
+    local num_text = tonumber(g_search_query)
     if num_text ~= nil then
         -- Search numbers in pid and ppid
         if num_text == process.pid or num_text == process.ppid then
@@ -804,11 +844,11 @@ local function filter_process(process)
 
     for _, field in pairs(search_fields) do
         if typeof(field) == "string" then
-            if process[field] and string.find(tostring(process[field]), search_query, 1, true) then
+            if process[field] and string.find(tostring(process[field]), g_search_query, 1, true) then
                 return true
             end
         elseif typeof(field) == "table" then
-            if process[field] and string.find(table.concat(process[field], " "), search_query, 1, true) then
+            if process[field] and string.find(table.concat(process[field], " "), g_search_query, 1, true) then
                 return true
             end
         end
@@ -837,17 +877,17 @@ local function render_processes(processes, level, holder)
 
         children_N = children_N + 1
         local process_key = key_prefix .. "row-" .. process.key
-        local is_hovered = hover_row_key == process_key
+        local is_hovered = g_hover_row_key == process_key
 
-        if process_view_pid and process_view_pid == process.pid then
-            process_view_data = process
+        if g_process_view_pid and g_process_view_pid == process.pid then
+            g_process_view_data = process
         end
 
-        local columns_num = #processes_data
+        local columns_num = #g_processes_data
         local process_children = table.create(columns_num)
 
         for col_idx = 1, columns_num do
-            local column = processes_data[col_idx]
+            local column = g_processes_data[col_idx]
             local fill = "surface/0.0"
             local color = is_hovered and default_hover_color or "on_surface"
             local fontWeight = "medium"
@@ -932,13 +972,13 @@ local function render_processes(processes, level, holder)
             radius = 16,
             fill = is_hovered and default_hover_fill or "surface/0.0",
             onHover = function(state, key)
-                local old_state = hover_row_key
+                local old_state = g_hover_row_key
                 if state == "true" then
-                    hover_row_key = process_key
+                    g_hover_row_key = process_key
                 else
-                    hover_row_key = nil
+                    g_hover_row_key = nil
                 end
-                if old_state ~= hover_row_key then
+                if old_state ~= g_hover_row_key then
                     update_processes_hover_cache(default_hover_fill, default_hover_color)
                     render()
                 end
@@ -948,13 +988,13 @@ local function render_processes(processes, level, holder)
                     toggle_group_expand_state(process.key)
                     reset_processes_cache()
                     render()
-                elseif process_view_pid == nil or process_view_pid ~= process.pid then
-                    process_view_pid = process.pid
-                    process_view_data = process
+                elseif g_process_view_pid == nil or g_process_view_pid ~= process.pid then
+                    g_process_view_pid = process.pid
+                    g_process_view_data = process
                     render()
                 else
-                    process_view_pid = nil
-                    process_view_data = nil
+                    g_process_view_pid = nil
+                    g_process_view_data = nil
                     render()
                 end
             end
@@ -985,7 +1025,7 @@ local function render_processes(processes, level, holder)
     return rows_holders
 end
 
-
+-- Render the header block for the processes panel.
 local function render_header_block()
     return {
         ui.row({ key = "header", gap = 4, align = "center" }, {
@@ -1005,9 +1045,9 @@ local function render_header_block()
                 variant = "default",
                 controlSize = "sm",
                 tooltip = noctalia.tr("user_processes_tip"),
-                selected = show_user_processes,
+                selected = g_show_user_processes,
                 onClick = function()
-                    show_user_processes = true
+                    g_show_user_processes = true
                     reset_processes_cache()
                     render()
                 end,
@@ -1019,9 +1059,9 @@ local function render_header_block()
                 variant = "default",
                 controlSize = "sm",
                 tooltip = noctalia.tr("system_processes_tip"),
-                selected = not show_user_processes,
+                selected = not g_show_user_processes,
                 onClick = function()
-                    show_user_processes = false
+                    g_show_user_processes = false
                     reset_processes_cache()
                     render()
                 end,
@@ -1029,14 +1069,14 @@ local function render_header_block()
             ui.spacer({ key = "title-gap-2", flexGrow = 1 }),
             ui.glyph({ name = "search", size = 16 }),
             ui.input({
-                key = "search-" .. tostring(search_query_ctl),
+                key = "search-" .. tostring(g_search_query_ctl_key),
                 placeholder = noctalia.tr("search_placeholder"),
                 flexGrow = 6,
                 controlSize = "sm",
-                value = search_query,
+                value = g_search_query,
                 focus = true,
                 onChange = function(value)
-                    search_query = value
+                    g_search_query = value
                     reset_processes_cache()
                     render()
                 end
@@ -1045,11 +1085,11 @@ local function render_header_block()
                 key = "clear_search",
                 glyph = "x",
                 variant = "default",
-                enabled = search_query ~= "",
+                enabled = g_search_query ~= "",
                 tooltip = noctalia.tr("tip_clear_search"),
                 onClick = function()
-                    search_query = ""
-                    search_query_ctl = search_query_ctl + 1
+                    g_search_query = ""
+                    g_search_query_ctl_key = g_search_query_ctl_key + 1
                     reset_processes_cache()
                     render()
                 end,
@@ -1060,9 +1100,9 @@ local function render_header_block()
                 glyph = "adjustments-horizontal",
                 variant = "ghost",
                 tooltip = noctalia.tr("tip_options"),
-                selected = show_view_options,
+                selected = g_show_view_options,
                 onClick = function()
-                    show_view_options = not show_view_options
+                    g_show_view_options = not g_show_view_options
                     render()
                 end,
             }),
@@ -1088,16 +1128,17 @@ local function render_header_block()
     }
 end
 
+-- Render the processes block with caching
 local function render_processes_block()
-    if processes_cache ~= nil then
-        return processes_cache
+    if g_processes_cache ~= nil then
+        return g_processes_cache
     end
 
     local rows
     local children = {}
 
-    if search_query == "" then
-        if not show_user_processes then
+    if g_search_query == "" then
+        if not g_show_user_processes then
             rows = render_processes(g_data.system_processes, 0, true)
             table.move(rows, 1, #rows, #children + 1, children)
         else
@@ -1112,7 +1153,7 @@ local function render_processes_block()
                     table.insert(children, render_processes_type_header(true))
                     level = 1
                 end
-                if apps_expanded or not view_show_processes then
+                if g_apps_expanded or not view_show_processes then
                     rows = render_processes(g_data.applications, level, true)
                     table.move(rows, 1, #rows, #children + 1, children)
                 end
@@ -1124,7 +1165,7 @@ local function render_processes_block()
                     level = 1
                     table.insert(children, render_processes_type_header(false))
                 end
-                if all_processes_expanded or not have_apps then
+                if g_all_processes_expanded or not have_apps then
                     rows = render_processes(g_data.user_processes, level, true)
                     table.move(rows, 1, #rows, #children + 1, children)
                 end
@@ -1135,7 +1176,7 @@ local function render_processes_block()
         table.move(rows, 1, #rows, #children + 1, children)
     end
 
-    processes_cache = children
+    g_processes_cache = children
     return children
 end
 
@@ -1180,7 +1221,7 @@ render = function()
     }, children))
 end
 
-
+-- Run scripts/stats.py to get stats updates for processes
 local function run_processes_stream()
     local plugin_dir = noctalia.pluginDir()
     local theme
@@ -1193,7 +1234,7 @@ local function run_processes_stream()
     noctalia.runStream(cmd,
         function(line)
             if line:find("tordex/procs:pid:") then
-                procs_pid = tonumber(line:match("tordex/procs:pid:(%d+)"))
+                g_procs_pid = tonumber(line:match("tordex/procs:pid:(%d+)"))
             elseif starts_with(line, "tordex/procs:ready:") then
                 local filename = line:match("tordex/procs:ready:(.+)")
                 noctalia.readFileAsync(filename, function(content, err)
@@ -1201,7 +1242,7 @@ local function run_processes_stream()
                         local decoded = noctalia.json.decode(content) or nil
                         if decoded then
                             g_data = decoded
-                            data_load_ms = tostring(noctalia.nowMs())
+                            g_data_load_ms = tostring(noctalia.nowMs())
                             sort_all_processes()
                             reset_processes_cache()
                             render()
@@ -1214,10 +1255,10 @@ end
 
 -- Stop the procs process if it is running, and reset the PID to -1.
 local function stop_processes_stream()
-    if procs_pid ~= -1 then
-        local cmd = "pkill -SIGINT -p " .. tostring(procs_pid)
+    if g_procs_pid ~= -1 then
+        local cmd = "pkill -SIGINT -p " .. tostring(g_procs_pid)
         noctalia.runAsync(cmd)
-        procs_pid = -1
+        g_procs_pid = -1
     end
 end
 
