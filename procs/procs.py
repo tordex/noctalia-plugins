@@ -670,6 +670,56 @@ def fetch_sway_applications(processes: dict):
 
     return windows
 
+def fetch_scroll_applications(processes: dict):
+    try:
+        p = subprocess.run("scrollmsg -t get_tree | jq '[.. | select(.pid? and .name?) | {app_id: (.app_id // .window_properties.class), pid: .pid}]'", capture_output=True, shell=True)
+        if p.returncode != 0:
+            return []
+    except FileNotFoundError:
+        return []
+
+    try:
+        scroll_windows = json.loads(p.stdout.decode())
+    except json.JSONDecodeError:
+        return []
+
+    windows = []
+    for window in scroll_windows:
+        app_id = window.get("app_id") or "Unknown"
+        windows.append({
+            "app_id": app_id,
+            "pid": window["pid"]
+        })
+
+    return windows
+
+
+def fetch_mango_applications(processes: dict):
+    try:
+        p = subprocess.run(["mmsg", "get", "all-clients"], capture_output=True)
+        if p.returncode != 0:
+            return []
+    except FileNotFoundError:
+        return []
+
+    try:
+        mango_windows = json.loads(p.stdout.decode())
+    except json.JSONDecodeError:
+        return []
+
+    if mango_windows.get("clients") is None:
+        return []
+
+    windows = []
+    for window in mango_windows["clients"]:
+        app_id = window.get("appid") or "Unknown"
+        windows.append({
+            "app_id": app_id,
+            "pid": window["pid"]
+        })
+
+    return windows
+
 
 def fetch_applications(processes: dict):
     xdg_current_desktop = os.environ.get("XDG_CURRENT_DESKTOP")
@@ -684,6 +734,10 @@ def fetch_applications(processes: dict):
         windows = fetch_hyprland_applications(processes)
     elif "sway" in xdg_current_desktop:
         windows = fetch_sway_applications(processes)
+    elif "scroll" in xdg_current_desktop:
+        windows = fetch_scroll_applications(processes)
+    elif "mango" in xdg_current_desktop:
+        windows = fetch_mango_applications(processes)
 
     if len(windows) == 0:
         return {}
