@@ -39,6 +39,7 @@ import gi
 import psutil
 import draw_graph
 import pwd
+from pathlib import Path
 
 gi.require_version('Gio', '2.0')
 gi.require_version('GioUnix', '2.0')
@@ -434,6 +435,27 @@ def get_system_stats():
         "username": g_username,
     }
 
+g_order_by = "mem"
+
+def sort_processes(processes):
+    global g_order_by
+    if g_order_by.startswith("-"):
+        key = g_order_by[1:]
+        reverse = False
+    else:
+        key = g_order_by
+        reverse = True
+
+    if key in ["name", "username"]:
+        def_val = ""
+    else:
+        def_val = 0
+
+    return sorted(processes, key=lambda p: (
+        p.get(key, def_val) if p.get(key, None) is not None else def_val,
+        p.get("name", None) if p.get("name", None) is not None else ""
+    ), reverse=reverse)
+
 
 def fetch_processes(interval: float):
     processes = {}
@@ -766,7 +788,7 @@ def fetch_applications(processes: dict):
         fill_app_processes(window["pid"], ret[app_id]["processes"], processes)
 
     for _, app_data in ret.items():
-        app_data["processes"] = list(app_data["processes"].values())
+        app_data["processes"] = sort_processes(app_data["processes"].values())
 
     return ret
 
@@ -847,7 +869,7 @@ def update_group_metrics(grouped_processes: dict):
             "io": total_io,
             "swap": total_swap,
             "username": username,
-            "processes": procs,
+            "processes": sort_processes(procs),
         })
     return output_data
 
@@ -870,8 +892,45 @@ def group_processes(processes: dict):
 
     return update_group_metrics(user_processes), update_group_metrics(system_processes)
 
+
 def nofollow_opener(path, flags):
     return os.open(path, flags | os.O_NOFOLLOW)
+
+order_by_file = os.environ.get("XDG_RUNTIME_DIR", "/dev/shm") + "/noctalia_tordex_procs_order_by"
+
+def read_order_by():
+    global g_order_by, order_by_file
+
+    try:
+        with open(order_by_file, "r") as f:
+            g_order_by = f.readline().strip()
+    except FileNotFoundError:
+        g_order_by = "mem"
+
+
+def wait_for_order_by_file_change(timeout: float = 10.0, poll_interval: float = 0.2) -> bool:
+    path = Path(order_by_file)
+
+    initial_mtime = 0
+    try:
+        initial_mtime = path.stat().st_mtime
+    except FileNotFoundError:
+        pass
+    start_time = time.monotonic()
+
+    while time.monotonic() - start_time < timeout:
+        time.sleep(poll_interval)
+        if not path.exists():
+            continue
+        try:
+            current_mtime = path.stat().st_mtime
+            if current_mtime != initial_mtime:
+                return True
+        except FileNotFoundError:
+            continue
+
+    return False
+
 
 def main():
     interval = (int)(sys.argv[1]) if len(sys.argv) > 1 else 1
@@ -880,18 +939,24 @@ def main():
     save_path = os.environ.get("XDG_RUNTIME_DIR", "/dev/shm")
 
     while True:
+        read_order_by()
         processes = fetch_processes(interval)
         apps = fetch_applications(processes)
         update_apps_metrics(apps)
         user_processes, system_processes = group_processes(processes)
         output_data = {
-            "processes": list(processes.values()),
-            "applications": list(apps.values()),
-            "user_processes": user_processes,
-            "system_processes": system_processes,
+            "processes": sort_processes(processes.values()),
+            "applications": sort_processes(apps.values()),
+            "user_processes": sort_processes(user_processes),
+            "system_processes": sort_processes(system_processes),
         }
         output_data["system_stats"] = get_system_stats()
         output_data["distro_info"] = get_distro_info()
+
+        user_processes = None
+        system_processes = None
+        apps = None
+        processes = None
 
         cpu_graph_path = f"{save_path}/noctalia_tordex_procs_cpu_usage.png"
         mem_graph_path = f"{save_path}/noctalia_tordex_procs_mem_usage.png"
@@ -928,13 +993,13 @@ def main():
         filename = f"{save_path}/noctalia_tordex_procs.json"
         try:
             with open(filename, "w", opener=nofollow_opener) as f:
-                json.dump(output_data, f, sort_keys=True)
+                json.dump(output_data, f)
             print(f"tordex/procs:ready:{filename}", flush=True)
         except FileNotFoundError as e:
             print(f"tordex/procs:error:" + json.dumps({"message": f"Failed to write JSON file: {e}"}), flush=True)
 
-        processes = []
-        time.sleep(interval)
+        output_data = None
+        wait_for_order_by_file_change(timeout=interval)
 
 if __name__ == '__main__':
     print(f"tordex/procs:pid:{self_pid}")

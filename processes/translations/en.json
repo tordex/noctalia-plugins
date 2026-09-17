@@ -7,6 +7,7 @@
     "one": "hour",
     "other": "hours"
   },
+  "last_update": "Last updated",
   "minutes": {
     "one": "minute",
     "other": "minutes"
@@ -94,6 +95,7 @@
   "tip_options": "View options",
   "tip_settings": "Plugin settings",
   "title": "Processes",
+  "total_processes": "Total processes",
   "user_processes_label": "User",
   "user_processes_tip": "Show only user processes"
 }

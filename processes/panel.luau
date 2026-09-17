@@ -1,5 +1,7 @@
 --!nonstrict
 
+local g_plugin_version = "1.1.1"
+
 -- Data from the nvtop command, which is updated in real-time.
 local g_data = nil
 
@@ -29,6 +31,9 @@ local render
 
 -- Data load time in milliseconds. Used as part of key for gauge images controls.
 local g_data_load_ms = "none"
+
+-- Update time in seconds since the epoch. Used to track when the data was last updated.
+local g_update_time = 0
 
 -- Cache for processes UI tree to improve performance.
 local g_processes_cache = nil
@@ -583,12 +588,6 @@ local g_processes_data = {
     },
 }
 
-local g_processes_data_transfer = {}
-
-for _, column in ipairs(g_processes_data) do
-    g_processes_data_transfer[column.data_key] = column.sort_value
-end
-
 -- Converts context value to a valid order_by key, handling the "-" prefix for descending order.
 local function get_order_by(context)
     local clear_context = context
@@ -608,97 +607,10 @@ local function get_order_by(context)
     return "mem"
 end
 
-local function values_are_equal(a, b)
-    if a == nil and b == nil then
-        return true
-    elseif a == nil or b == nil then
-        return false
-    end
-
-    if type(a) == "number" and type(b) == "number" then
-        return a == b
-    else
-        return tostring(a) == tostring(b)
-    end
-end
-
-local function compare_values(a, b, reverse)
-    if a == nil and b == nil then
-        return false
-    elseif a == nil then
-        return not reverse
-    elseif b == nil then
-        return reverse
-    end
-
-    if type(a) == "number" and type(b) == "number" then
-        if reverse then
-            return a > b
-        else
-            return a < b
-        end
-    else
-        if reverse then
-            return tostring(a) > tostring(b)
-        else
-            return tostring(a) < tostring(b)
-        end
-    end
-end
-
--- Sort the processes based on the selected column and order (ascending or descending).
-local function sort_processes(processes)
-    local order_by = get_order_by(g_order_by_context)
-    local reverse = true
-    if order_by:sub(1, 1) == "-" then
-        order_by = order_by:sub(2)
-        reverse = false
-    end
-
-    table.sort(processes, function(a, b)
-        local a_value = g_processes_data_transfer[order_by](a[order_by]) or g_processes_data_transfer["name"](a["name"])
-        local b_value = g_processes_data_transfer[order_by](b[order_by]) or g_processes_data_transfer["name"](b["name"])
-        local a_value2 = g_processes_data_transfer["name"](a["name"])
-        local b_value2 = g_processes_data_transfer["name"](b["name"])
-
-        if a_value == nil and b_value == nil then
-            return false
-        elseif a_value == nil then
-            return not reverse
-        elseif b_value == nil then
-            return reverse
-        end
-
-        if values_are_equal(a_value, b_value) then
-            return compare_values(a_value2, b_value2, reverse)
-        end
-
-        return compare_values(a_value, b_value, reverse)
-    end)
-end
-
--- Sort all processes in the data, including applications, user processes, and system processes.
-local function sort_all_processes()
-    if g_data == nil then
-        return
-    end
-    sort_processes(g_data.processes)
-    sort_processes(g_data.applications)
-    sort_processes(g_data.user_processes)
-    sort_processes(g_data.system_processes)
-    for _, app_data in pairs(g_data.applications) do
-        sort_processes(app_data.processes)
-    end
-    for _, process in pairs(g_data.user_processes) do
-        if process.processes then
-            sort_processes(process.processes)
-        end
-    end
-    for _, process in pairs(g_data.system_processes) do
-        if process.processes then
-            sort_processes(process.processes)
-        end
-    end
+local function set_order_by(order_by)
+    g_order_by_context = get_order_by(order_by)
+    local path = noctalia.getenv("XDG_RUNTIME_DIR") or "/dev/shm"
+    noctalia.writeFile(path .. "/noctalia_tordex_procs_order_by", g_order_by_context)
 end
 
 -- Render the header row for the process list, with sortable columns.
@@ -724,11 +636,10 @@ local function render_processes_header()
             selected = order_by == column.data_key or order_by == "-" .. column.data_key,
             onClick = function()
                 if column.data_key == g_order_by_context then
-                    g_order_by_context = "-" .. column.data_key
+                    set_order_by("-" .. column.data_key)
                 else
-                    g_order_by_context = column.data_key
+                    set_order_by(column.data_key)
                 end
-                sort_all_processes()
                 reset_processes_cache()
                 render()
             end
@@ -1252,7 +1163,25 @@ render = function()
                     fill = "surface",
                     radius = 10,
                     gap = 4,
-                }, processes_block)
+                }, processes_block),
+                ui.row({
+                    paddingH = 12,
+                    paddingV = 2,
+                },{
+                    ui.label({
+                        key = "update-time",
+                        fontSize = 12,
+                        color = "on_surface_variant",
+                        text = noctalia.tr("last_update") .. ": " .. os.date("%H:%M:%S", g_update_time) .. "   " .. noctalia.tr("total_processes") .. ": " .. tostring(#g_data.processes),
+                    }),
+                    ui.spacer({ flexGrow = 1 }),
+                    ui.label({
+                        key = "version",
+                        fontSize = 12,
+                        color = "on_surface_variant",
+                        text = "v" .. g_plugin_version,
+                    }),
+                })
             })
     )
 
@@ -1286,7 +1215,7 @@ local function run_processes_stream()
                         if decoded then
                             g_data = decoded
                             g_data_load_ms = tostring(noctalia.nowMs())
-                            sort_all_processes()
+                            g_update_time = os.time()
                             reset_processes_cache()
                             render()
                         end
@@ -1319,9 +1248,10 @@ end
 -- Handle the panel opening event, and check for a context key to sort the process list by.
 function onOpen(context)
     if context ~= nil and context ~= "" then
-        g_order_by_context = context:lower()
-        sort_all_processes()
+        set_order_by(context:lower())
         render()
+    else
+        set_order_by(g_order_by_context)
     end
     stop_processes_stream()
     run_processes_stream()
@@ -1331,6 +1261,8 @@ end
 -- Handle the panel closing event, and stop the nvtop process.
 function onClose()
     stop_processes_stream()
+    local path = noctalia.getenv("XDG_RUNTIME_DIR") or "/dev/shm"
+    noctalia.removeFile(path .. "/noctalia_tordex_procs_order_by")
 end
 
 render()
