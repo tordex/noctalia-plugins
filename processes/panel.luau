@@ -828,6 +828,11 @@ local function render_processes(processes, level, holder)
             continue
         end
 
+        -- limit the number of rows displayed in application or group to prevent "exceeded CPU budget" error
+        if not holder and row_idx > 100 then
+            break
+        end
+
         children_N = children_N + 1
         local process_key = key_prefix .. "row-" .. process.key
         local is_hovered = g_hover_row_key == process_key
@@ -956,12 +961,11 @@ local function render_processes(processes, level, holder)
             local group_processes_children = render_processes(process.processes, level + 1, false)
             table.move(group_processes_children, 1, #group_processes_children, children_N + 1, children)
             children_N = children_N + #group_processes_children
-        else
-            if children_N > 100 and holder then
-                rows_holders[#rows_holders + 1] = ui.column({ gap = 4 }, children)
-                children = {}
-                children_N = 0
-            end
+        end
+        if children_N > 100 and holder then
+            rows_holders[#rows_holders + 1] = ui.column({ gap = 4 }, children)
+            children = {}
+            children_N = 0
         end
 
     end
