@@ -1,6 +1,6 @@
 --!nonstrict
 
-local g_plugin_version = "1.1.2"
+local g_plugin_version = "2.0.0"
 
 -- Data from the nvtop command, which is updated in real-time.
 local g_data = nil
@@ -59,6 +59,11 @@ local g_info_row_hover_key = ""
 -- The key of the value currently being hovered in the process view. Used to change the appearance of the value on hover.
 local g_process_view_hover_key = nil
 
+-- Get the file path for the stats data.
+local function get_params_file_path()
+    local path = noctalia.getenv("XDG_RUNTIME_DIR") or "/dev/shm"
+    return path .. "/noctalia_tordex_procs_params"
+end
 
 -- Reset the processes cache. This is useful when the underlying data changes and the UI needs to be refreshed.
 local function reset_processes_cache()
@@ -609,9 +614,7 @@ local function get_order_by(context)
 end
 
 write_stats_params = function()
-    local path = noctalia.getenv("XDG_RUNTIME_DIR") or "/dev/shm"
-
-    local stats_params = g_order_by_context;
+        local stats_params = g_order_by_context;
     if g_show_user_processes then
         stats_params = stats_params .. "\n" .. "user"
     else
@@ -619,7 +622,7 @@ write_stats_params = function()
     end
     stats_params = stats_params .. "\n" .. g_search_query
 
-    noctalia.writeFile(path .. "/noctalia_tordex_procs_order_by", stats_params)
+    noctalia.writeFile(get_params_file_path(), stats_params)
 end
 
 local function set_order_by(order_by)
@@ -1240,7 +1243,7 @@ function onOpen(context)
     if context ~= nil and context ~= "" then
         set_order_by(context:lower())
     else
-        set_order_by(g_order_by_context)
+        write_stats_params()
     end
     stop_processes_stream()
     run_processes_stream()
@@ -1252,8 +1255,10 @@ end
 -- Handle the panel closing event, and stop the nvtop process.
 function onClose()
     stop_processes_stream()
-    local path = noctalia.getenv("XDG_RUNTIME_DIR") or "/dev/shm"
-    noctalia.removeFile(path .. "/noctalia_tordex_procs_order_by")
+    local params_file = get_params_file_path()
+    if noctalia.fileExists(params_file) then
+        noctalia.removeFile(params_file)
+    end
 end
 
 render()

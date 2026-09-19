@@ -776,16 +776,18 @@ def group_processes(processes: dict):
 def nofollow_opener(path, flags):
     return os.open(path, flags | os.O_NOFOLLOW)
 
-order_by_file = os.environ.get("XDG_RUNTIME_DIR", "/dev/shm") + "/noctalia_tordex_procs_order_by"
+g_params_file = os.environ.get("XDG_RUNTIME_DIR", "/dev/shm") + "/noctalia_tordex_procs_params"
+g_params_file_timestamp = 0
 
 def read_params():
-    global g_order_by, order_by_file, g_show_user_processes, g_search_query
+    global g_order_by, g_params_file, g_show_user_processes, g_search_query, g_params_file_timestamp
 
     try:
-        with open(order_by_file, "r") as f:
+        with open(g_params_file, "r") as f:
             g_order_by = f.readline().strip()
             g_show_user_processes = f.readline().strip() == "user"
             g_search_query = f.readline().strip()
+        g_params_file_timestamp = os.path.getmtime(g_params_file)
     except FileNotFoundError:
         g_order_by = "mem"
         g_show_user_processes = True
@@ -793,22 +795,18 @@ def read_params():
 
 
 def wait_for_order_by_file_change(timeout: float = 10.0, poll_interval: float = 0.2) -> bool:
-    path = Path(order_by_file)
-
-    initial_mtime = 0
-    try:
-        initial_mtime = path.stat().st_mtime
-    except FileNotFoundError:
-        pass
+    path = Path(g_params_file)
     start_time = time.monotonic()
 
     while time.monotonic() - start_time < timeout:
         time.sleep(poll_interval)
         if not path.exists():
             continue
+        if g_params_file_timestamp == 0:
+            continue
         try:
             current_mtime = path.stat().st_mtime
-            if current_mtime != initial_mtime:
+            if current_mtime != g_params_file_timestamp:
                 return True
         except FileNotFoundError:
             continue
@@ -817,7 +815,7 @@ def wait_for_order_by_file_change(timeout: float = 10.0, poll_interval: float = 
 
 
 def main():
-    global order_by_file, g_order_by, g_show_user_processes, g_search_query
+    global g_params_file, g_order_by, g_show_user_processes, g_search_query
 
     interval = (int)(sys.argv[1]) if len(sys.argv) > 1 else 1
     skin = sys.argv[2] if len(sys.argv) > 2 else "dark"
