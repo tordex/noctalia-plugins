@@ -28,6 +28,7 @@ local view_show_processes = noctalia.getConfig("show_processes")
 
 -- Forward declaration of the render function to allow it to be called from other functions.
 local render
+local write_stats_params
 
 -- Data load time in milliseconds. Used as part of key for gauge images controls.
 local g_data_load_ms = "none"
@@ -435,7 +436,7 @@ local function render_process_view()
         render_process_view_value(tostring(g_process_view_data.pid), "start", "process_view_pid"),
         render_process_view_value(tostring(g_process_view_data.ppid), "start", "process_view_ppid"),
         render_process_view_value(g_process_view_data.exe, "start", "process_view_exe"),
-        render_process_view_value(table.concat(g_process_view_data.cmdline, " "), "start", "process_view_cmdline"),
+        render_process_view_value(g_process_view_data.cmdline, "start", "process_view_cmdline"),
         render_process_view_value(tostring(g_process_view_data.cpu) .. "%", "start"),
     }))
 
@@ -607,10 +608,23 @@ local function get_order_by(context)
     return "mem"
 end
 
+write_stats_params = function()
+    local path = noctalia.getenv("XDG_RUNTIME_DIR") or "/dev/shm"
+
+    local stats_params = g_order_by_context;
+    if g_show_user_processes then
+        stats_params = stats_params .. "\n" .. "user"
+    else
+        stats_params = stats_params .. "\n" .. "system"
+    end
+    stats_params = stats_params .. "\n" .. g_search_query
+
+    noctalia.writeFile(path .. "/noctalia_tordex_procs_order_by", stats_params)
+end
+
 local function set_order_by(order_by)
     g_order_by_context = get_order_by(order_by)
-    local path = noctalia.getenv("XDG_RUNTIME_DIR") or "/dev/shm"
-    noctalia.writeFile(path .. "/noctalia_tordex_procs_order_by", g_order_by_context)
+    write_stats_params()
 end
 
 -- Render the header row for the process list, with sortable columns.
@@ -766,49 +780,6 @@ local function update_processes_hover_cache(default_hover_fill, default_hover_co
     end
 end
 
--- Filter process. Returns true to show process and false to hide process
-local function filter_process(process)
-    if g_search_query == "" then
-        return true
-    end
-
-    if process.pid == nil then
-        return false
-    end
-
-    if g_show_user_processes and process.uid ~= g_data.system_stats.uid then
-        return false
-    end
-
-    if not g_show_user_processes and process.uid == g_data.system_stats.uid then
-        return false
-    end
-
-    local num_text = tonumber(g_search_query)
-    if num_text ~= nil then
-        -- Search numbers in pid and ppid
-        if num_text == process.pid or num_text == process.ppid then
-            return true
-        end
-        return false
-    end
-
-    local search_fields = { "name", "cmdline", "exe", "comm", "username" }
-
-    for _, field in pairs(search_fields) do
-        if typeof(field) == "string" then
-            if process[field] and string.find(tostring(process[field]), g_search_query, 1, true) then
-                return true
-            end
-        elseif typeof(field) == "table" then
-            if process[field] and string.find(table.concat(process[field], " "), g_search_query, 1, true) then
-                return true
-            end
-        end
-    end
-
-    return false
-end
 
 -- Render the list of processes for the selected GPU, with sortable columns.
 local function render_processes(processes, level, holder)
@@ -824,10 +795,6 @@ local function render_processes(processes, level, holder)
     for row_idx = 1, #processes do
         local process = processes[row_idx]
 
-        if not filter_process(process) then
-            continue
-        end
-
         -- limit the number of rows displayed in application or group to prevent "exceeded CPU budget" error
         if not holder and row_idx > 100 then
             break
@@ -838,7 +805,9 @@ local function render_processes(processes, level, holder)
         local is_hovered = g_hover_row_key == process_key
 
         if g_process_view_pid and g_process_view_pid == process.pid then
-            g_process_view_data = process
+            for key, value in process do
+                    g_process_view_data[key] = value
+            end
         end
 
         local columns_num = #g_processes_data
@@ -898,8 +867,8 @@ local function render_processes(processes, level, holder)
                             name = marker_glyph,
                         }),
                         ui.image({
-                            key = process_key .. "-col-" .. tostring(col_idx) .. "-" .. tostring(level) .. "-icon",
-                            path = process.icon,
+                            key = process_key .. "-col-" .. tostring(col_idx) .. "-" .. tostring(level) .. "-icon-" .. process.icon,
+                            path = g_data.icons[process.icon],
                             width = 16,
                             height = 16,
                         }),
@@ -949,6 +918,18 @@ local function render_processes(processes, level, holder)
                 elseif g_process_view_pid == nil or g_process_view_pid ~= process.pid then
                     g_process_view_pid = process.pid
                     g_process_view_data = process
+                    local plugin_dir = noctalia.pluginDir()
+                    noctalia.runAsync({"python3", plugin_dir .. "/scripts/enrich.py", tostring(process.pid)}, function(result)
+                        if result.exitCode == 0 then
+                            local data = noctalia.json.decode(result.stdout)
+                            if data ~= nil then
+                                g_process_view_data.exe = data.exe
+                                g_process_view_data.cmdline = data.cmdline
+                                g_process_view_data.comm = data.comm
+                                render()
+                            end
+                        end
+                    end)
                     render()
                 else
                     g_process_view_pid = nil
@@ -1005,7 +986,7 @@ local function render_header_block()
                 selected = g_show_user_processes,
                 onClick = function()
                     g_show_user_processes = true
-                    reset_processes_cache()
+                    write_stats_params()
                     render()
                 end,
             }),
@@ -1019,7 +1000,7 @@ local function render_header_block()
                 selected = not g_show_user_processes,
                 onClick = function()
                     g_show_user_processes = false
-                    reset_processes_cache()
+                    write_stats_params()
                     render()
                 end,
             }),
@@ -1032,9 +1013,9 @@ local function render_header_block()
                 controlSize = "sm",
                 value = g_search_query,
                 focus = true,
-                onChange = function(value)
+                onSubmit = function(value)
                     g_search_query = value
-                    reset_processes_cache()
+                    write_stats_params()
                     render()
                 end
             }),
@@ -1047,7 +1028,7 @@ local function render_header_block()
                 onClick = function()
                     g_search_query = ""
                     g_search_query_ctl_key = g_search_query_ctl_key + 1
-                    reset_processes_cache()
+                    write_stats_params()
                     render()
                 end,
             }),
@@ -1147,6 +1128,11 @@ render = function()
 
     local processes_block = render_processes_block()
 
+    local info = noctalia.tr("last_update") .. ": " .. os.date("%H:%M:%S", g_update_time)
+    info = info .. "   " .. noctalia.tr("total_processes") .. ": " .. tostring(g_data.total_processes)
+    info = info .. " (" .. noctalia.tr("num_user_processes") .. ": " .. tostring(g_data.num_user_processes)
+    info = info .. "   " .. noctalia.tr("num_system_processes") .. ": " .. tostring(g_data.num_system_processes) .. ")"
+
     table.insert(children, render_info())
     table.insert(children,
         ui.column({
@@ -1176,7 +1162,7 @@ render = function()
                         key = "update-time",
                         fontSize = 12,
                         color = "on_surface_variant",
-                        text = noctalia.tr("last_update") .. ": " .. os.date("%H:%M:%S", g_update_time) .. "   " .. noctalia.tr("total_processes") .. ": " .. tostring(#g_data.processes),
+                        text = info,
                     }),
                     ui.spacer({ flexGrow = 1 }),
                     ui.label({
@@ -1253,13 +1239,14 @@ end
 function onOpen(context)
     if context ~= nil and context ~= "" then
         set_order_by(context:lower())
-        render()
     else
         set_order_by(g_order_by_context)
     end
     stop_processes_stream()
     run_processes_stream()
-    render()
+    if g_data == nil then
+        render()
+    end
 end
 
 -- Handle the panel closing event, and stop the nvtop process.
