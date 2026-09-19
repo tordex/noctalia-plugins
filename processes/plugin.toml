@@ -1,6 +1,6 @@
 id = "tordex/processes"
 name = "Processes"
-version = "1.1.1"
+version = "1.1.2"
 plugin_api = 24
 author = "tordex"
 license = "MIT"
