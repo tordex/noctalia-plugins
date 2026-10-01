@@ -59,7 +59,7 @@
       "unknown": "Linux"
     }
   },
-  "search_placeholder": "press Enter to search",
+  "search_placeholder": "type to search",
   "settings": {
     "delay": {
       "description": "Select the refresh rate (seconds)",
