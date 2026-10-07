@@ -37,7 +37,7 @@ pip install Pillow
 
 ## Usage
 
-Add the **NVTOP** bar widget in the shell's bar-widget picker and click it to open the process panel.
+Add the **NVTOP** bar widget in the shell's bar-widget picker and click it to open the plugin panel.
 
 You can also open the panel by binding it in your compositor or by setting the action for `sysmon` widgets:
 
@@ -104,8 +104,8 @@ The panel writes some files to the `${XDG_RUNTIME_DIR}` directory when it is ope
 
 | File name | Description |
 | --- | --- |
-| `noctalia_tordex_nvtop_params` | The information about processes filters and sorting. |
-| `noctalia_tordex_nvtop.json` | The information about processes and system. |
+| `noctalia_tordex_nvtop_params` | The information about selected GPU. |
+| `noctalia_tordex_nvtop.json` | The information collected from nvtop. |
 | `noctalia_tordex_nvtop_gpu_usage.png` | Gauge for GPU usage |
 | `noctalia_tordex_nvtop_mem_usage.png` | Gauge for VRAM usage |
 
