@@ -1,6 +1,6 @@
 id = "tordex/nvtop"
 name = "NVTOP"
-version = "2.1.0"
+version = "2.1.1"
 plugin_api = 24
 author = "tordex"
 license = "MIT"
@@ -15,7 +15,7 @@ type = "int"
 label_key = "settings.delay.label"
 description_key = "settings.delay.description"
 default = 5
-min = 1
+min = 5
 max = 20
 
 [[setting]]
@@ -45,6 +45,10 @@ type = "color"
 label_key = "settings.process_hover_color.label"
 description_key = "settings.process_hover_color.description"
 default = "on_surface_variant"
+
+[[widget]]
+id = "widget"
+entry = "widget.luau"
 
 [[panel]]
 id = "panel"
