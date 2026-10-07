@@ -40,17 +40,17 @@ local function gpu_info_row(label, value, glyph)
     },{
         ui.glyph({
             name = glyph,
-            color = "on_surface",
+            color = "on_surface_variant",
         }),
         ui.label({
             text = label .. ":",
-            color = "on_surface",
+            color = "on_surface_variant",
         })
     }), ui.label({
             text = value,
             flexGrow = 1,
             fontWeight = "bold",
-            color = "on_surface",
+            color = "on_surface_variant",
         })
 end
 
@@ -140,7 +140,7 @@ local function render_gpu_list(selected_idx)
         ui.glyph({ name = "cpu", size = 16 }),
         ui.label({
             key = "title",
-            text = "NVTop",
+            text = "NVTOP",
             fontSize = 16,
             fontWeight = "bold",
             color = "on_surface",
@@ -377,7 +377,7 @@ local processes_data = {
         context_key = {"mem"},
         label = noctalia.tr("nvtop.process.gpu_mem.label"),
         tip = noctalia.tr("nvtop.process.gpu_mem.tip"),
-        flexGrow = 2,
+        flexGrow = 2.3,
         textAlign = "end",
         process_value = function(value) return value ~= nil and format_memory_size(value) or "n/a" end,
         sort_value = function(value) return tonumber(value) end,
@@ -387,7 +387,7 @@ local processes_data = {
         context_key = {"cmd"},
         label = noctalia.tr("nvtop.process.cmdline.label"),
         tip = noctalia.tr("nvtop.process.cmdline.tip"),
-        flexGrow = 10,
+        flexGrow = 8,
         textAlign = "start",
         process_value = function(value) return value end,
         sort_value = function(value) return tostring(value) end,
@@ -431,7 +431,7 @@ local processes_data_shared_encode_decode = {
         context_key = {"mem"},
         label = noctalia.tr("nvtop.process.gpu_mem.label"),
         tip = noctalia.tr("nvtop.process.gpu_mem.tip"),
-        flexGrow = 2,
+        flexGrow = 2.3,
         textAlign = "end",
         process_value = function(value) return value ~= nil and format_memory_size(value) or "n/a" end,
         sort_value = function(value) return tonumber(value) end,
@@ -441,7 +441,7 @@ local processes_data_shared_encode_decode = {
         context_key = {"cmd"},
         label = noctalia.tr("nvtop.process.cmdline.label"),
         tip = noctalia.tr("nvtop.process.cmdline.tip"),
-        flexGrow = 10,
+        flexGrow = 9,
         textAlign = "start",
         process_value = function(value) return value end,
         sort_value = function(value) return tostring(value) end,
@@ -629,7 +629,7 @@ local function render_processes(gpu_idx)
         local process_children = {}
         local is_hovered = hover_row_key == "proc-row-" .. process.pid
         for _, column in ipairs(get_processes_data(gpu_idx)) do
-            local fill = (is_hovered or (expanded_pid ~= nil and expanded_pid == process.pid)) and default_hover_fill or "surface"
+            local fill = "surface/0.0"
             local color = (is_hovered or (expanded_pid ~= nil and expanded_pid == process.pid)) and default_hover_color or "on_surface"
             local fontWeight = "medium"
             if order_by == column.data_key or order_by == "-" .. column.data_key then
@@ -641,16 +641,19 @@ local function render_processes(gpu_idx)
             end
             table.insert(process_children, ui.column({
                 flexGrow = column.flexGrow,
-                paddingH = 2,
+                paddingH = 8,
+                paddingV = 1,
                 fill = fill,
+                radius = 16,
             }, {
                 ui.label({
                     text = column.process_value(process[column.data_key]),
                     maxLines = 1,
                     flexGrow = 1,
-                    color = process[column.data_key] and color or color .. "/0.4",
+                    color = color,
                     textAlign = column.textAlign,
                     fontWeight = fontWeight,
+                    opacity = process[column.data_key] and 1 or 0.4,
                 })
             }))
         end
@@ -658,8 +661,6 @@ local function render_processes(gpu_idx)
         if expanded_pid ~= nil and expanded_pid == process.pid then
             table.insert(children, ui.column({
                 radius = 2,
-                border = "outline",
-                borderWidth = 1,
                 padding = 1,
                 fill = default_hover_fill
             }, {
@@ -745,9 +746,7 @@ local function render_processes(gpu_idx)
                 key = "proc-row-" .. process.pid,
                 gap = 8,
                 padding = 1,
-                radius = 2,
-                border = "outline",
-                borderWidth = (is_hovered or (expanded_pid ~= nil and expanded_pid == process.pid)) and 1 or 0,
+                radius = 16,
                 fill = (is_hovered or (expanded_pid ~= nil and expanded_pid == process.pid)) and default_hover_fill or "surface",
                 onHover = function(state, key)
                     local old_state = hover_row_key
@@ -785,6 +784,7 @@ local function render_processes(gpu_idx)
             borderWidth = 1,
             fill = "surface",
             radius = 10,
+            gap = 2,
         }, children)
     })
 end
@@ -892,5 +892,3 @@ function onClose()
         noctalia.removeFile(params_file)
     end
 end
-
-render()
