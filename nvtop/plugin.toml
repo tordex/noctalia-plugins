@@ -51,7 +51,7 @@ key = "show_tips"
 type = "bool"
 label_key = "settings.show_tips.label"
 description_key = "settings.show_tips.description"
-default = "false"
+default = false
 
 [[widget]]
 id = "widget"
