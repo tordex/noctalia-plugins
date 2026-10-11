@@ -23,14 +23,14 @@ entry = "bar.luau"
   type = "glyph"
   label_key = "settings.xwayland_glyph.label"
   description_key = "settings.xwayland_glyph.description"
-  default = "circle-letter-x"
+  default = "letter-x"
 
   [[widget.setting]]
   key = "wayland_glyph"
   type = "glyph"
   label_key = "settings.wayland_glyph.label"
   description_key = "settings.wayland_glyph.description"
-  default = "circle-letter-w"
+  default = "letter-w"
 
   [[widget.setting]]
   key = "hide_on_wayland"

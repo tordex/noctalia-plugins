@@ -29,6 +29,6 @@ Add the **XWayland Indicator** widget to a bar from Settings → Bar.
 
 | Setting | Type | Default | Description |
 | --- | --- | --- | --- |
-| `xwayland_glyph` | `glyph` | `circle-letter-x` | Glyph for **XWayland** windows |
-| `wayland_glyph` | `glyph` | `circle-letter-w` | Glyph for **Wayland** windows |
+| `xwayland_glyph` | `glyph` | `letter-x` | Glyph for **XWayland** windows |
+| `wayland_glyph` | `glyph` | `letter-w` | Glyph for **Wayland** windows |
 | `hide_on_wayland` | `bool` | `true` | Hide on Wayland window |
