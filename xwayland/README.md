@@ -7,7 +7,7 @@ Indicator showing whether the active window is using XWayland in Umbriel.
 | Field | Value |
 | --- | --- |
 | ID | `tordex/xwayland` |
-| Entries | Bar widget: `widget`; service: `service` |
+| Entries | Bar widget: `bar`; service: `service` |
 
 - `bar` - bar widget. Shows the focused window type glyph (XWayland or Wayland).
 - `service` - the only entry that talks to the compositor. It holds `umbriel subscribe workspaces,windows` open,
