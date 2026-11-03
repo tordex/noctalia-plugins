@@ -9,7 +9,7 @@
       "label": "Hide on Wayland window"
     },
     "indicate_focused_only": {
-      "description": "Only indicate the focused window. When off indicate any XWayland window is opened",
+      "description": "Only indicate the focused window. When off indicate any XWayland window present",
       "label": "Indicate focused only"
     },
     "wayland_glyph": {

@@ -32,4 +32,4 @@ Add the **XWayland Indicator** widget to a bar from Settings → Bar.
 | `xwayland_glyph` | `glyph` | `letter-x` | Glyph for **XWayland** windows |
 | `wayland_glyph` | `glyph` | `letter-w` | Glyph for **Wayland** windows |
 | `hide_on_wayland` | `bool` | `true` | Hide on Wayland window |
-| `indicate_focused_only` | `bool` | `true` | Only indicate the focused window. When 'false' indicate any XWayland window is opened |
+| `indicate_focused_only` | `bool` | `true` | Only indicate the focused window. When 'false' indicate any XWayland window present |
